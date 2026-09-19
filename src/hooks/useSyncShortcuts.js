@@ -61,7 +61,7 @@ export function useSyncShortcuts({ enabled, engine, lines, cursor, dispatch }) {
           const line = lines[cursor]
           if (line) {
             event.preventDefault()
-            dispatch({ type: 'set-time', id: line.id, time: null })
+            dispatch({ type: 'clear-timing', id: line.id })
           }
           break
         }

@@ -92,6 +92,7 @@ folds the offset into both.
 | End is at or after the next line's start | The next line takes over at its start. No gap, no fade. |
 | Gap shorter than 0.6s | Treated as continuous. The stack stays visible, so short breaths don't flicker. |
 | Before the first line's start | Empty frame. The intro reads as silence, same as any other gap. |
+| No line timed at all | Stack stays parked on line 1 at full opacity, as in the MVP, so the look can be set before syncing. |
 | End typed at or before the line's start | Rejected. The field shows the error and keeps the previous value. |
 | Start cleared on a line that has an end | End is kept but ignored until the start is set again. |
 | Negative offset pushes an end below 0 | That line is dropped from playback, as with starts today. Stored values untouched. |
@@ -146,9 +147,11 @@ one sign that the video is still running.
   seeks, scrubs and the export all agree.
 - **Performance.** The cue list is built once per line/offset change, as
   today. The per-frame lookup stays a binary search.
-- **Accessibility.** The End field has a visible label and an accessible name
-  that includes the line number. Validation errors are announced through the
-  existing live region.
+- **Accessibility.** The End field has an accessible name that includes the
+  line number, and reads "end" when empty (the start field reads "start").
+  Validation errors are announced through a status region under the line
+  table, in primary text colour: `--danger` is below 4.5:1 for small text, so
+  red is kept for the field border only.
 
 ---
 
@@ -163,8 +166,9 @@ existing tests keep working without a migration.
 
 ### State changes
 
-- `set-end` (new) writes `end` for one line by `id`. It's the only action
-  besides `clear-times`, `bake-offset` and Backspace's clear that touches `end`.
+- `set-end` (new) writes `end` for one line by `id`. The only other actions
+  that touch `end` are `clear-times`, `bake-offset` and `clear-timing` (new,
+  Backspace: clears one line's start and end together).
 - `stamp-cursor` writes `time` only and leaves `end` alone.
 - Text actions never touch `time` or `end`, the same rule as the MVP.
 
@@ -232,19 +236,21 @@ No new dependencies.
 
 ## 10. Acceptance criteria
 
-- [ ] Lines store `end`, defaulting to `null`; old stored projects load with
+- [x] Lines store `end`, defaulting to `null`; old stored projects load with
       `end: null` and render as before.
-- [ ] A line with an end is invisible within 0.25s after that end.
-- [ ] The frame is empty before the first line and in any gap of 0.6s or more.
-- [ ] Gaps under 0.6s do not fade.
-- [ ] An end at or after the next start produces no gap.
-- [ ] Seeking into a gap shows an empty frame on the first frame drawn.
-- [ ] Offset shifts `end` on read; bake folds it into `end` and clamps at zero.
-- [ ] Re-import carries `end` by position.
-- [ ] Text edits and Space taps never change `end`.
-- [ ] Backspace on the cursor line and `clear-times` clear both start and end.
-- [ ] The End field rejects an end at or before the start, and announces why.
-- [ ] Exported `.mp4` shows the same gaps as the preview.
+- [x] A line with an end is invisible within 0.25s after that end.
+- [x] The frame is empty before the first line and in any gap of 0.6s or more.
+- [x] Gaps under 0.6s do not fade.
+- [x] An end at or after the next start produces no gap.
+- [x] Seeking into a gap shows an empty frame on the first frame drawn.
+- [x] Offset shifts `end` on read; bake folds it into `end` and clamps at zero.
+- [x] Re-import carries `end` by position.
+- [x] Text edits and Space taps never change `end`.
+- [x] Backspace on the cursor line and `clear-times` clear both start and end.
+- [x] The End field rejects an end at or before the start, and announces why.
+- [ ] Exported `.mp4` shows the same gaps as the preview. The export records
+      the preview canvas (`decisions/0001`), so this holds by construction, but
+      it hasn't yet been checked by eye in an exported file of a real song.
 
 ---
 

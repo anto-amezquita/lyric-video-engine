@@ -7,13 +7,13 @@ import {
   ensureFontLoaded,
   renderFrame,
 } from '../lib/renderFrame.js'
-import { buildCueList, findActiveIndex } from '../state/project.js'
+import { buildCueList, resolveFrame } from '../state/project.js'
 
 /**
  * The 9:16 preview, and the surface the exporter records.
  *
- * It reads `audio.currentTime` every animation frame, finds the active line in
- * the cue list, and draws. Nothing here goes through React state, so the
+ * It reads `audio.currentTime` every animation frame, resolves the active line
+ * and the stack's visibility from the cue list, and draws. Nothing here goes through React state, so the
  * editor next to it stays responsive at 60fps.
  */
 export function CanvasPreview({
@@ -57,7 +57,7 @@ export function CanvasPreview({
 
     let lastReported = null
     return engine.subscribe((time, now) => {
-      const activeIndex = findActiveIndex(cues, time)
+      const { activeIndex, focusIndex, opacity } = resolveFrame(cues, time)
       if (activeIndex !== lastReported) {
         lastReported = activeIndex
         onActiveIndexChange(activeIndex)
@@ -67,6 +67,8 @@ export function CanvasPreview({
         layout,
         style,
         activeIndex,
+        focusIndex,
+        opacity,
         progress: duration ? time / duration : 0,
         anim: animRef.current,
         now,

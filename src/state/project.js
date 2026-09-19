@@ -29,32 +29,100 @@ export function effectiveTime(line, offsetMs) {
   return line.time == null ? null : line.time + offsetMs / 1000
 }
 
+/** Effective end of a line, or null when it has none or it isn't after the start. */
+export function effectiveEnd(line, offsetMs) {
+  if (line.end == null || line.time == null || line.end <= line.time) return null
+  return line.end + offsetMs / 1000
+}
+
+/** How long the lyric stack takes to fade out at a line's end, and back in after a gap. */
+export const FADE_SECONDS = 0.25
+
+/** Gaps shorter than this are ignored, so a breath between lines doesn't flicker. */
+export const MIN_GAP_SECONDS = 0.6
+
 /**
  * Timed lines sorted by effective time, so the active-line lookup survives an
  * out-of-order tap pass. Untimed lines are laid out but can never be active.
+ *
+ * Each cue also gets `until`: the moment the line leaves the screen. That is
+ * its end, unless the next line starts first or the gap would be too short to
+ * read as one — then the line simply hands over to the next.
  */
 export function buildCueList(lines, offsetMs) {
-  return lines
-    .map((line, index) => ({ index, time: effectiveTime(line, offsetMs) }))
+  const cues = lines
+    .map((line, index) => ({
+      index,
+      time: effectiveTime(line, offsetMs),
+      end: effectiveEnd(line, offsetMs),
+    }))
     .filter((cue) => cue.time != null && cue.time >= 0)
     .toSorted((a, b) => a.time - b.time)
+
+  return cues.map((cue, i) => {
+    const next = cues[i + 1]?.time ?? Infinity
+    const gap = cue.end == null ? 0 : next - cue.end
+    return { ...cue, until: gap >= MIN_GAP_SECONDS ? cue.end : next }
+  })
 }
 
-/** Index of the last cue at or before `time`, or -1 before the first cue. */
-export function findActiveIndex(cues, time) {
+/** Position of the last cue at or before `time`, or -1 before the first cue. */
+function findCuePosition(cues, time) {
   let lo = 0
   let hi = cues.length - 1
   let found = -1
   while (lo <= hi) {
     const mid = (lo + hi) >> 1
     if (cues[mid].time <= time) {
-      found = cues[mid].index
+      found = mid
       lo = mid + 1
     } else {
       hi = mid - 1
     }
   }
   return found
+}
+
+/** Index of the line on screen at `time`, or -1 before the first cue and in gaps. */
+export function findActiveIndex(cues, time) {
+  const position = findCuePosition(cues, time)
+  if (position < 0) return -1
+  const cue = cues[position]
+  return time < cue.until ? cue.index : -1
+}
+
+/**
+ * Everything a frame needs to know about the lyric stack at `time`: which line
+ * is active, which line the stack should be centred on, and how visible the
+ * whole stack is.
+ *
+ * Pure function of time and cues, so a seek, a scrub and the export all draw
+ * the same frame for the same moment. With no cues at all, the stack stays
+ * parked on line 1 at full opacity, so the look can be set before syncing.
+ */
+export function resolveFrame(cues, time) {
+  if (!cues.length) return { activeIndex: -1, focusIndex: 0, opacity: 1 }
+
+  const position = findCuePosition(cues, time)
+  const cue = cues[position]
+  const upcoming = cues[position + 1] ?? null
+
+  if (!cue || time >= cue.until) {
+    /* Intro or gap: nothing on screen, stack waiting on the next line. */
+    return { activeIndex: -1, focusIndex: (upcoming ?? cue).index, opacity: 0 }
+  }
+
+  const afterGap = position === 0 || cues[position - 1].until < cue.time
+  const fadeIn = afterGap ? (time - cue.time) / FADE_SECONDS : 1
+  const fadeOut = upcoming && cue.until >= upcoming.time ? 1 : (cue.until - time) / FADE_SECONDS
+  const opacity = Math.min(1, Math.max(0, Math.min(fadeIn, fadeOut)))
+
+  return { activeIndex: cue.index, focusIndex: cue.index, opacity }
+}
+
+/** True when an end would land at or before its line's start. */
+export function isEndBeforeStart(time, end) {
+  return time != null && end != null && end <= time
 }
 
 function withCursor(state, cursor) {
@@ -84,6 +152,24 @@ export function projectReducer(state, action) {
       return { ...state, lines }
     }
 
+    /* An end must come after the start. The field checks first; this is the backstop. */
+    case 'set-end': {
+      const lines = state.lines.map((line) =>
+        line.id === action.id && !isEndBeforeStart(line.time, action.end)
+          ? { ...line, end: action.end }
+          : line,
+      )
+      return { ...state, lines }
+    }
+
+    /* Backspace on a line: its whole timing goes, start and end together. */
+    case 'clear-timing': {
+      const lines = state.lines.map((line) =>
+        line.id === action.id ? { ...line, time: null, end: null } : line,
+      )
+      return { ...state, lines }
+    }
+
     /* Spacebar tap: stamp the cursor line, then step forward. */
     case 'stamp-cursor': {
       if (!state.lines.length) return state
@@ -95,7 +181,10 @@ export function projectReducer(state, action) {
     }
 
     case 'clear-times': {
-      return { ...state, lines: state.lines.map((line) => ({ ...line, time: null })) }
+      return {
+        ...state,
+        lines: state.lines.map((line) => ({ ...line, time: null, end: null })),
+      }
     }
 
     case 'set-offset': {
@@ -110,9 +199,12 @@ export function projectReducer(state, action) {
     case 'bake-offset': {
       if (!state.offsetMs) return state
       const shift = state.offsetMs / 1000
-      const lines = state.lines.map((line) =>
-        line.time == null ? line : { ...line, time: Math.max(0, line.time + shift) },
-      )
+      const bake = (value) => (value == null ? null : Math.max(0, value + shift))
+      const lines = state.lines.map((line) => ({
+        ...line,
+        time: bake(line.time),
+        end: bake(line.end),
+      }))
       return { ...state, lines, offsetMs: 0 }
     }
 
@@ -124,7 +216,7 @@ export function projectReducer(state, action) {
 
     case 'insert-line': {
       const lines = [...state.lines]
-      lines.splice(action.index + 1, 0, { id: createLineId(), text: '', time: null })
+      lines.splice(action.index + 1, 0, { id: createLineId(), text: '', time: null, end: null })
       return { ...state, lines, cursor: action.index + 1 }
     }
 
@@ -157,6 +249,8 @@ export function loadStoredProject() {
     return {
       ...initialProject,
       ...saved,
+      /* Projects saved before end times existed load with every end unset. */
+      lines: saved.lines.map((line) => ({ ...line, end: line.end ?? null })),
       style: { ...DEFAULT_STYLE, ...saved.style },
       cursor: 0,
     }

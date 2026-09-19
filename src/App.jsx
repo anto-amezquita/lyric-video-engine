@@ -128,7 +128,8 @@ export default function App() {
 
             <p className="hint">
               Play, then tap <kbd>Space</kbd> on each line as it lands. The cursor advances on its
-              own, so one pass is usually enough. Tap again over a line to overwrite it.
+              own, so one pass is usually enough. Tap again over a line to overwrite it. An end time
+              is optional: leave it empty and the line holds until the next one starts.
             </p>
 
             {hasLyrics && (

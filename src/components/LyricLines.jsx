@@ -1,12 +1,68 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { formatTime, parseTime } from '../lib/time.js'
-import { effectiveTime } from '../state/project.js'
+import { effectiveTime, isEndBeforeStart } from '../state/project.js'
+
+/**
+ * A timestamp cell. Holds a draft while typing and commits on blur or Enter;
+ * an empty draft clears the value, anything unparseable leaves it alone.
+ * `validate` can refuse a parsed value by returning a reason, which is
+ * reported instead of committed.
+ */
+function TimeField({
+  className,
+  value,
+  placeholder,
+  label,
+  title,
+  onCommit,
+  onSeek,
+  validate,
+  onInvalid,
+}) {
+  const [draft, setDraft] = useState(null)
+  const [invalid, setInvalid] = useState(false)
+  const shown = draft ?? (value == null ? '' : formatTime(value))
+
+  const commit = () => {
+    if (draft == null) return
+    const parsed = draft.trim() === '' ? null : parseTime(draft)
+    const reason = parsed == null ? null : validate?.(parsed)
+    if (reason) {
+      onInvalid?.(reason)
+      setInvalid(true)
+    } else if (draft.trim() === '' || parsed != null) {
+      onCommit(parsed)
+      onInvalid?.('')
+      setInvalid(false)
+    }
+    setDraft(null)
+  }
+
+  return (
+    <input
+      className={`${className} input--mono`}
+      data-unset={value == null}
+      aria-invalid={invalid || undefined}
+      value={shown}
+      placeholder={placeholder}
+      aria-label={label}
+      title={title}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onDoubleClick={() => value != null && onSeek(value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') setDraft(null)
+      }}
+    />
+  )
+}
 
 /**
  * One editable lyric line.
  *
- * Text and timestamp are separate fields over the same object: typing in one
- * cannot disturb the other, and neither can change the line's position.
+ * Text, start and end are separate fields over the same object: typing in one
+ * cannot disturb the others, and none of them can change the line's position.
  */
 const LineRow = memo(function LineRow({
   line,
@@ -17,20 +73,8 @@ const LineRow = memo(function LineRow({
   dispatch,
   onSeek,
   onStamp,
+  onInvalid,
 }) {
-  const [draft, setDraft] = useState(null)
-  const shown = draft ?? (line.time == null ? '' : formatTime(line.time))
-
-  const commit = () => {
-    if (draft == null) return
-    if (draft.trim() === '') dispatch({ type: 'set-time', id: line.id, time: null })
-    else {
-      const parsed = parseTime(draft)
-      if (parsed != null) dispatch({ type: 'set-time', id: line.id, time: parsed })
-    }
-    setDraft(null)
-  }
-
   return (
     <div
       className="line"
@@ -40,24 +84,34 @@ const LineRow = memo(function LineRow({
     >
       <span className="line__index">{index + 1}</span>
 
-      <input
-        className="line__time input--mono"
-        data-unset={line.time == null}
-        value={shown}
-        placeholder="—"
-        aria-label={`Timestamp for line ${index + 1}`}
+      <TimeField
+        className="line__time"
+        value={line.time}
+        placeholder="start"
+        label={`Start time for line ${index + 1}`}
         title={
           line.time != null && offsetMs !== 0
             ? `Plays at ${formatTime(effectiveTime(line, offsetMs))} with the current offset`
-            : 'Timestamp — type m:ss.cc or seconds'
+            : 'Start — type m:ss.cc or seconds'
         }
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onDoubleClick={() => line.time != null && onSeek(line.time)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') event.currentTarget.blur()
-          if (event.key === 'Escape') setDraft(null)
-        }}
+        onCommit={(time) => dispatch({ type: 'set-time', id: line.id, time })}
+        onSeek={onSeek}
+      />
+
+      <TimeField
+        className="line__end"
+        value={line.end}
+        placeholder="end"
+        label={`End time for line ${index + 1}`}
+        title="End — leave empty to hold until the next line"
+        onCommit={(end) => dispatch({ type: 'set-end', id: line.id, end })}
+        onSeek={onSeek}
+        validate={(end) =>
+          isEndBeforeStart(line.time, end)
+            ? `Line ${index + 1}: the end has to come after the start (${formatTime(line.time)}).`
+            : null
+        }
+        onInvalid={onInvalid}
       />
 
       <input
@@ -103,6 +157,7 @@ const LineRow = memo(function LineRow({
 
 export function LyricLines({ lines, cursor, activeIndex, offsetMs, dispatch, onSeek, onStamp }) {
   const containerRef = useRef(null)
+  const [message, setMessage] = useState('')
 
   /* Keep the tap cursor in view during a sync pass without stealing focus. */
   useEffect(() => {
@@ -115,20 +170,26 @@ export function LyricLines({ lines, cursor, activeIndex, offsetMs, dispatch, onS
   }
 
   return (
-    <div className="lines" ref={containerRef}>
-      {lines.map((line, index) => (
-        <LineRow
-          key={line.id}
-          line={line}
-          index={index}
-          isCursor={index === cursor}
-          isActive={index === activeIndex}
-          offsetMs={offsetMs}
-          dispatch={dispatch}
-          onSeek={onSeek}
-          onStamp={onStamp}
-        />
-      ))}
-    </div>
+    <>
+      <div className="lines" ref={containerRef}>
+        {lines.map((line, index) => (
+          <LineRow
+            key={line.id}
+            line={line}
+            index={index}
+            isCursor={index === cursor}
+            isActive={index === activeIndex}
+            offsetMs={offsetMs}
+            dispatch={dispatch}
+            onSeek={onSeek}
+            onStamp={onStamp}
+            onInvalid={setMessage}
+          />
+        ))}
+      </div>
+      <p className="hint" role="status" data-tone={message ? 'error' : undefined}>
+        {message}
+      </p>
+    </>
   )
 }

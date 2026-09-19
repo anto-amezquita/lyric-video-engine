@@ -22,7 +22,7 @@ export function tokenizeLyrics(raw) {
 
 /**
  * Build line objects from raw text, carrying existing timestamps over by
- * position.
+ * position — starts and ends both.
  *
  * This is the "new demo, same song" path: re-importing a corrected .txt keeps
  * the sync work as long as the line order holds. Timestamps live on the line
@@ -33,5 +33,6 @@ export function buildLines(raw, previousLines = []) {
     id: previousLines[index]?.id ?? createLineId(),
     text,
     time: previousLines[index]?.time ?? null,
+    end: previousLines[index]?.end ?? null,
   }))
 }

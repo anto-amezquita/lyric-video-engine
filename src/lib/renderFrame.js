@@ -116,14 +116,18 @@ function paintProgress(ctx, progress) {
 /**
  * Draw one frame.
  *
- * `activeIndex` is -1 before the first cue, which parks the stack on the
- * opening line instead of jumping.
+ * `focusIndex` is the line the stack centres on and `opacity` fades the whole
+ * stack — both come from `resolveFrame`. While the stack is fully faded out
+ * the scroll snaps instead of easing, so after a gap the next line fades in
+ * already in place.
  */
 export function renderFrame({
   ctx,
   layout,
   style,
   activeIndex,
+  focusIndex = 0,
+  opacity: stackOpacity = 1,
   progress,
   anim,
   now,
@@ -133,10 +137,9 @@ export function renderFrame({
 
   const { blocks, size, rowHeight } = layout
   if (blocks.length) {
-    const focusIndex = activeIndex >= 0 ? activeIndex : 0
-    const target = blocks[focusIndex].center
+    const target = blocks[Math.min(focusIndex, blocks.length - 1)].center
 
-    if (anim.scroll == null || !animate) {
+    if (anim.scroll == null || !animate || stackOpacity === 0) {
       anim.scroll = target
     } else {
       const dt = anim.lastFrame == null ? 1 / 60 : Math.min(0.1, (now - anim.lastFrame) / 1000)
@@ -151,6 +154,7 @@ export function renderFrame({
     const x = centered ? VIDEO_WIDTH / 2 : PADDING_X
 
     blocks.forEach((block, index) => {
+      if (stackOpacity === 0) return
       const y = block.center - anim.scroll + FOCAL_Y
       if (y < -block.height - 120 || y > VIDEO_HEIGHT + block.height + 120) return
 
@@ -159,7 +163,7 @@ export function renderFrame({
       const scale = 0.93 + 0.07 * emphasis
 
       ctx.save()
-      ctx.globalAlpha = opacity
+      ctx.globalAlpha = opacity * stackOpacity
       ctx.translate(x, y)
       ctx.scale(scale, scale)
       ctx.fillStyle =

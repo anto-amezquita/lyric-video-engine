@@ -130,10 +130,10 @@ select {
 
 @media (max-width: 640px) {
   .line {
-    grid-template-columns: 2rem 5rem 1fr;
+    grid-template-columns: 2rem 5rem 5rem 1fr;
     grid-template-areas:
-      'index time actions'
-      'text  text text';
+      'index time end  actions'
+      'text  text text text';
     row-gap: var(--space-1);
     padding: var(--space-2);
   }
@@ -144,6 +144,11 @@ select {
 
   .line__time {
     grid-area: time;
+    text-align: left;
+  }
+
+  .line__end {
+    grid-area: end;
     text-align: left;
   }
 
@@ -404,7 +409,7 @@ input[type='checkbox'] {
 
 .line {
   display: grid;
-  grid-template-columns: 2.25rem 5.5rem 1fr auto;
+  grid-template-columns: 2.25rem 5.5rem 5.5rem 1fr auto;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
@@ -440,7 +445,8 @@ input[type='checkbox'] {
   font-variant-numeric: tabular-nums;
 }
 
-.line__time {
+.line__time,
+.line__end {
   width: 100%;
   min-height: 28px;
   padding: 0 var(--space-1);
@@ -455,13 +461,20 @@ input[type='checkbox'] {
 }
 
 .line__time:hover,
-.line__time:focus {
+.line__time:focus,
+.line__end:hover,
+.line__end:focus {
   border-color: var(--border-strong);
   background: var(--background);
 }
 
-.line__time[data-unset='true'] {
+.line__time[data-unset='true'],
+.line__end[data-unset='true'] {
   color: var(--text-muted);
+}
+
+.line__end[aria-invalid='true'] {
+  border-color: var(--danger);
 }
 
 .line__text {
@@ -566,6 +579,11 @@ input[type='checkbox'] {
   font-size: var(--text-xs);
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+/* --danger is too dark for small text on these surfaces, so the message reads in primary text; the red lives on the field border. */
+.hint[data-tone='error'] {
+  color: var(--text-primary);
 }
 
 /* ---------- Preview ---------- */
