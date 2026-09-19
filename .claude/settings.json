@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git -C * add:*)",
+      "Bash(git -C * commit:*)",
+      "Bash(git -C * push:*)",
+      "Bash(git -C * diff:*)",
+      "Bash(git -C * log:*)",
+      "Bash(grep:*)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s https://api.github.com/repos/anthropics/claude-code/contents/)",
+      "Bash(gh api *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:medium.com)"
+    ]
+  }
+}
