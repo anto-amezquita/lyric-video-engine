@@ -20,15 +20,40 @@ Its job is narrow on purpose: a session should be able to open this file and kno
 
 ## 2. Open items
 
-[List each open item as its own entry. One item = one thing someone could actually start work on today.]
+### Commit an end-to-end test for the three export routes
 
-### [Item name]
+- **Source:** MVP build. The routes were verified by driving Chrome with
+  `MediaRecorder.isTypeSupported` masked to force each one, but that check lives
+  in a scratch script, not the repo.
+- **Why it matters:** Only one of the three routes runs in any given browser, so
+  two of them can break without anyone noticing locally. One of them already did
+  — see the `classWorkerURL` note in `decisions/0001`.
+- **Status:** Not started
 
-- **Source:** [Where this came from — a stakeholder request, a spec's own deferred section, a bug found during other work, research, etc.]
-- **Why it matters:** [One or two sentences. Skip if the item name already makes it obvious.]
-- **Status:** [Not started / Spec needed / In progress / Blocked — and on what]
+### Decide whether stanza breaks should carry visual weight
 
-[Repeat per item. Delete this bracketed template block once real items replace it.]
+- **Source:** `specs/2026-09-19-lyric-video-mvp.md` §9, open questions.
+- **Why it matters:** Blank lines in the `.txt` are currently dropped, so a
+  chorus and the verse before it read as one continuous stack. Keeping them as
+  spacing, or as a hold on an empty frame, changes how the video breathes.
+- **Status:** Spec needed
+
+### Handle a backgrounded tab during export
+
+- **Source:** MVP build, known limitation.
+- **Why it matters:** `requestAnimationFrame` throttles when the tab is hidden,
+  which freezes frames mid-recording. The UI currently just asks the user not to
+  do that. Detecting `visibilitychange` and pausing the recording, or warning
+  loudly, would stop people shipping a broken take.
+- **Status:** Not started
+
+### Evaluate WebCodecs for export
+
+- **Source:** `decisions/0001`, alternatives considered.
+- **Why it matters:** It would make export faster than realtime, drop the 32MB
+  ffmpeg dependency, and give real H.264 everywhere. The cost is hand-writing an
+  MP4 muxer. Worth revisiting once support settles.
+- **Status:** Not started
 
 ---
 

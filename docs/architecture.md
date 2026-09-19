@@ -14,47 +14,55 @@ The goal is to help contributors and AI agents make technical decisions that fit
 
 ### Frontend
 
-- framework: [ ]
-- language: [ ]
-- styling: [ ]
-- component system: [ ]
-- animation: [ ]
-- forms: [ ]
-- state management: [ ]
-- data fetching: [ ]
-- routing: [ ]
+- framework: React 19 + Vite
+- language: JavaScript (ESM, `.jsx`)
+- styling: plain CSS with custom properties — no CSS framework, no UI library
+- component system: local components in `src/components/`
+- animation: canvas easing in the render loop; CSS transitions in the UI
+- forms: native inputs, uncontrolled where a draft value is needed
+- state management: one `useReducer` over the project; refs for per-frame values
+- data fetching: none — every file is read locally
+- routing: none — single view
 
 ### Backend
 
-- runtime / framework: [ ]
-- database: [ ]
-- auth: [ ]
-- file storage: [ ]
-- background jobs: [ ]
-- email / notifications: [ ]
+- runtime / framework: none
+- database: none — project state is held in `localStorage`
+- auth: none
+- file storage: none — audio and lyrics stay in the browser
+- background jobs: none
+- email / notifications: none
 
 ### Tooling
 
-- package manager: [ ]
-- linting: [ ]
-- formatting: [ ]
-- testing: [ ]
-- CI/CD: [ ]
-- deployment: [ ]
+- package manager: npm
+- linting: oxlint (`.oxlintrc.json`)
+- formatting: Prettier — no semicolons, single quotes, 100 columns
+- testing: `node --test` over `tests/*.test.js`
+- CI/CD: not set up yet
+- deployment: static — any host that serves the `dist/` folder
 
 ---
 
 ## 2. Repository structure
 
 ```txt
-[Define the preferred folder structure here.]
+src/
+  components/   presentational components; no timing or file logic
+  hooks/        stateful behaviour tied to browser APIs
+  lib/          pure or DOM-only helpers, no React
+  state/        the project reducer and its derived selectors
+  styles/       tokens.css and global.css
+tests/          node --test suites over src/lib and src/state
 ```
 
 ### Structure rules
 
-- [Rule]
-- [Rule]
-- [Rule]
+- `lib/` and `state/` must stay importable without React, so they stay testable
+  under plain `node --test`.
+- Anything that runs per animation frame lives in `lib/` or a ref, never in
+  React state.
+- Components receive the clock through `engine.subscribe`; they never poll.
 
 ---
 
@@ -86,63 +94,65 @@ Prefer code that is easy to reason about and maintain over code that is merely c
 
 ### Routing
 
-[How routing works.]
+Single view. If a second view is ever needed, add routing then — not before.
 
 ### Rendering model
 
-[SSR, CSR, SSG, hybrid, etc.]
+Client-side only. The app is a static bundle with no server at runtime.
 
 ### State management
 
-[What belongs in local state, URL state, server state, global state.]
+All project data — lines, timestamps, offset, style — lives in one reducer in
+`src/state/project.js` and is persisted to `localStorage` on change.
+
+Playback position is deliberately *not* React state. `audio.currentTime` is read
+each animation frame and pushed to subscribers, so a moving playhead never
+triggers a render. Components that need to show the time keep their own
+throttled copy.
 
 ### Data fetching
 
-[Preferred libraries, caching strategy, invalidation rules, loading/error handling.]
+None. Files arrive through `<input type="file">` and are read with `FileReader` or an object URL.
 
 ### Forms and validation
 
-[Where validation lives and what patterns to use.]
+Timestamp fields hold a draft string while being edited and commit on blur or
+Enter. `parseTime` returns `null` for anything unusable, and an unusable value
+leaves the stored timestamp alone rather than clearing it.
 
 ### Components
 
-[How components are grouped, named, and reused.]
+One component per file in `src/components/`, named for what it is. Components
+stay presentational; behaviour that touches a browser API lives in a hook. Rows
+in long lists are memoised.
 
 ### Styling
 
-[Tokens, CSS strategy, theming, responsive conventions.]
+Plain CSS. Tokens are CSS custom properties in `src/styles/tokens.css`, split
+into a raw scale (`--warm-500`, `--teal-500`) and semantic roles (`--background`,
+`--action-primary`). Components consume the semantic layer only.
+
+The scale names mirror the personal brand token set, so swapping in canonical
+values is a one-file change. This tool uses the bold expression — teal as
+accent — because the UI is a dark editing surface.
+
+Layout is a two-pane grid that collapses to one column below 900px.
 
 ### Accessibility
 
-[Implementation expectations.]
+Native elements throughout — buttons are buttons, the file inputs are real file
+inputs kept visually hidden but reachable. Every control has a label or
+`aria-label`. Focus is visible via a single `:focus-visible` rule. Keyboard
+shortcuts stand down while a text field has focus. The one destructive action
+(clearing all timestamps) is confirmed.
 
 ---
 
 ## 5. Backend architecture
 
-### API style
-
-[REST, GraphQL, RPC, server actions, etc.]
-
-### Domain boundaries
-
-[How business areas are separated.]
-
-### Authentication and authorization
-
-[Rules and ownership.]
-
-### Data validation
-
-[Where validation happens.]
-
-### Error handling
-
-[How errors are represented and exposed.]
-
-### Background processing
-
-[Jobs, queues, retries, idempotency.]
+There is no backend, and adding one would break the product's main promise:
+audio and lyrics never leave the browser. If server work is ever proposed, it
+needs an ADR that addresses that promise first.
 
 ---
 
@@ -150,44 +160,39 @@ Prefer code that is easy to reason about and maintain over code that is merely c
 
 ### Core entities
 
-- [Entity]
-- [Entity]
+- **Line** — `{ id, text, time }`. `time` is seconds from the start of the
+  audio, or `null` when the line has not been stamped yet.
+- **Project** — `{ lines, offsetMs, cursor, lyricsName, style }`.
+- **Style** — `{ fontScale, align, uppercase, accentActive, showProgress }`.
 
-### Database conventions
+### Conventions
 
-- naming: [ ]
-- ids: [ ]
-- timestamps: [ ]
-- soft delete: [ ]
-- migrations: [ ]
+- ids: opaque strings, generated locally, never displayed and never persisted
+  anywhere but `localStorage`.
+- timestamps: seconds as a number for stored values; milliseconds as an integer
+  for the global offset, because that is the unit people think in when nudging
+  against a recut.
+- `null` means "not stamped yet" and is distinct from `0`, which is a real
+  timestamp at the top of the track.
+- deletes are immediate; there is no soft delete and no undo. The one
+  destructive bulk action is confirmed.
+- migrations: the storage key carries the shape version. A breaking change takes
+  a new key rather than a migration.
 
 ### Data ownership
 
-[Which part of the system owns which data.]
+`src/state/project.js` owns everything that persists. `useAudioEngine` owns
+playback position and the Web Audio graph, and owns them in refs — no other
+module may keep a copy.
 
 ---
 
 ## 7. API conventions
 
-### Naming
-
-[Endpoint and field naming conventions.]
-
-### Requests
-
-[Validation, pagination, filtering, sorting.]
-
-### Responses
-
-[Shape, envelope, status handling.]
-
-### Errors
-
-[Error format and examples.]
-
-### Versioning
-
-[If relevant.]
+No APIs. The only versioned contract is the `localStorage` key
+`lyric-video-engine/project/v1`; a breaking change to the project shape needs a
+new key, and `loadStoredProject` must fall back to an empty project rather than
+throw.
 
 ---
 
@@ -195,19 +200,26 @@ Prefer code that is easy to reason about and maintain over code that is merely c
 
 ### Tokens
 
-[Where tokens live and how they are consumed.]
+`src/styles/tokens.css`, as CSS custom properties. Components read the semantic
+layer (`--surface`, `--action-primary`); only the semantic layer reads the raw
+scale. Canvas colours are the one exception — they are literal hex values in
+`src/lib/renderFrame.js`, because a canvas cannot read custom properties.
 
 ### Components
 
-[How components are shared and documented.]
+Components live in `src/components/` and are documented by the spec's component
+table plus a comment at the top of each file explaining why it exists.
 
 ### Variants
 
-[How visual and behavioural variants are handled.]
+CSS modifier classes (`.btn--primary`, `.btn--ghost`) and `data-` attributes for
+state (`data-active`, `data-cursor`). No variant props that fan out into
+conditional styling inside components.
 
 ### Theming
 
-[How brand or theme differences are represented.]
+One dark theme. The app is a video editing surface, so a light mode would work
+against the preview rather than for it.
 
 ---
 
@@ -215,27 +227,38 @@ Prefer code that is easy to reason about and maintain over code that is merely c
 
 ### Naming
 
-- files: [ ]
-- components: [ ]
-- hooks: [ ]
-- utilities: [ ]
-- types: [ ]
+- files: `PascalCase.jsx` for components, `camelCase.js` for everything else
+- components: named exports, named for the thing (`Transport`, `LyricLines`)
+- hooks: `use` prefix, one browser concern each
+- utilities: verb-first (`buildLines`, `findActiveIndex`, `convertToMp4`)
+- types: none — plain objects, with the shapes documented in the spec
 
 ### Type safety
 
-[Expected use of types, schemas, generated types, etc.]
+No TypeScript. The data model is three fields wide and pinned by tests instead.
+If the model grows past the project/line/style shapes, revisit this.
 
 ### Error handling
 
-[Patterns.]
+Browser capability gaps are expected, not exceptional: check support, then say
+what is missing and what to do about it. The export pipeline never discards a
+successful recording because a later step failed — the raw file stays
+downloadable.
+
+`try`/`catch` around storage access is deliberate; `localStorage` throws in
+private mode and persistence is a convenience, not a feature.
 
 ### Logging
 
-[Patterns.]
+None in production. ffmpeg's log stream is available through `convertToMp4`'s
+`onLog` for debugging, and is not wired up by default.
 
 ### Comments
 
-[When comments are useful and when code should explain itself.]
+Comment the decision, not the mechanism. A comment earns its place when it says
+why something is the way it is — why Space is the tap key rather than play/pause,
+why `classWorkerURL` must not be passed to ffmpeg — because that reasoning is
+not recoverable from the code.
 
 ---
 
@@ -243,35 +266,47 @@ Prefer code that is easy to reason about and maintain over code that is merely c
 
 ### Unit tests
 
-[What deserves unit tests.]
+The reducer and the pure helpers, in `tests/`. Specifically the decoupling
+guarantees: a text edit must not move an index or a timestamp, a re-import must
+carry timestamps over by position, and baking the offset must fold it in exactly
+once. These are the rules the product is built on, so they are the rules that
+get pinned.
 
 ### Integration tests
 
-[What deserves integration tests.]
+Not set up. The reducer tests cover the state layer; the browser layer is
+covered manually for now.
 
 ### End-to-end tests
 
-[What deserves E2E coverage.]
+Not set up, and worth adding: the export pipeline has three routes (direct,
+remux, transcode) and only one of them runs in any given browser. They were
+verified by driving Chrome with `MediaRecorder.isTypeSupported` masked to force
+each route. That check belongs in a committed suite. Tracked in
+`docs/backlog.md`.
 
 ### Visual regression
 
-[If relevant.]
+Not set up. The canvas renderer is the obvious candidate — a handful of frames
+at known timestamps.
 
 ### Accessibility testing
 
-[Expected checks.]
+Manual for now: tab through every control, confirm focus is visible, confirm
+shortcuts stand down inside text fields.
 
 ---
 
 ## 11. Security and privacy
 
-- [Authentication rules]
-- [Authorization rules]
-- [Secrets handling]
-- [PII handling]
-- [Input validation]
-- [Rate limiting]
-- [Auditability]
+- No accounts, no authentication, no authorization — there is nothing to log in to.
+- No secrets. The app has no keys, and nothing to put them in.
+- Audio and lyrics are processed entirely in the browser and never transmitted.
+  Treat any proposal to send them anywhere as a product change, not a technical one.
+- The only third-party request at runtime is the Google Fonts stylesheet. The
+  ffmpeg.wasm core is served from the app's own bundle, deliberately, so an
+  export works offline.
+- Object URLs are revoked when the file they point at is replaced.
 
 ---
 
@@ -279,38 +314,31 @@ Prefer code that is easy to reason about and maintain over code that is merely c
 
 ### Targets
 
-- [Target]
-- [Target]
+- The canvas holds 60fps while the lyric editor stays responsive.
+- The initial bundle stays under 100kB gzipped. It is currently ~77kB.
+- ffmpeg.wasm (32MB) is never downloaded unless a conversion is actually needed.
 
 ### Preferred practices
 
-- [Practice]
-- [Practice]
+- Measure text wrapping once per text/style change, never per frame.
+- Drive per-frame work from one shared `requestAnimationFrame` loop.
+- Memoise list rows so a timestamp edit re-renders one row, not the song.
+- Import anything large behind a dynamic `import()` at the point of use.
 
 ### Avoid
 
-- [Anti-pattern]
-- [Anti-pattern]
+- Putting playback position in React state.
+- A second `requestAnimationFrame` loop, or any timer that runs parallel to
+  `audio.currentTime`.
+- Recomputing canvas layout inside the draw call.
 
 ---
 
 ## 13. Observability
 
-### Analytics
-
-[How product analytics are instrumented.]
-
-### Logging
-
-[What is logged and why.]
-
-### Monitoring
-
-[How health and failures are detected.]
-
-### Error reporting
-
-[How client and server errors are tracked.]
+None, by design. There is no server to report to, and adding client-side
+telemetry would put lyric content within reach of a third party. Failures are
+surfaced to the person in the export panel instead.
 
 ---
 
@@ -318,46 +346,55 @@ Prefer code that is easy to reason about and maintain over code that is merely c
 
 ### Environments
 
-- local
-- preview
-- staging
-- production
+- local — `npm run dev`
+- production — `npm run build`, then serve `dist/` from any static host
 
 ### Environment variables
 
-[How they are managed.]
+None.
 
 ### Deployment process
 
-[How code reaches production.]
+Not set up yet. Whatever host is chosen must serve `.wasm` as
+`application/wasm`, or the conversion fallback will fail to load.
 
 ### Rollback strategy
 
-[How failed releases are handled.]
+Redeploy the previous build. There is no state on a server to roll back.
 
 ---
 
 ## 15. Preferred patterns
 
-- [Pattern]
-- [Pattern]
-- [Pattern]
+- One reducer for project data; refs for anything read per frame.
+- Timestamps decoupled from text — always address a line by `id`, never rewrite
+  a line object wholesale from a text action.
+- Read-time transforms (the global offset) over destructive edits, with an
+  explicit "bake" when the user wants to commit.
+- Detect a browser capability, then explain the consequence in the UI.
+- Native elements before custom ones.
 
 ---
 
 ## 16. Patterns to avoid
 
-- [Anti-pattern]
-- [Anti-pattern]
-- [Anti-pattern]
+- Storing a derived value that could be computed from `audio.currentTime`.
+- Rewriting stored timestamps when a read-time offset would do.
+- A UI component that reaches for the audio element directly instead of going
+  through the engine.
+- Adding a component library. The UI is plain semantic HTML on purpose.
 
 ---
 
 ## 17. Open architectural questions
 
-- [Question]
-- [Question]
-- [Question]
+- Should the export move to WebCodecs (`VideoEncoder`) once support settles?
+  It would be faster than realtime and drop the ffmpeg dependency, at the cost
+  of hand-writing an MP4 muxer. See `decisions/0001`.
+- Is positional carry-over on re-import the right match strategy, or should
+  lines be matched by text similarity so reordering survives too?
+- Does the project shape need a real migration path, or is resetting to an empty
+  project acceptable on a `v2` key?
 
 ---
 
