@@ -24,38 +24,7 @@ Ordered by what it costs if it goes wrong, read against `product-north-star.md`
 ("reliable enough that the export is never the reason a video is late") rather
 than by effort.
 
-### 1. Handle a backgrounded tab during export
-
-- **Source:** MVP build, known limitation.
-- **Why it matters:** `requestAnimationFrame` throttles when the tab is hidden,
-  so frames freeze mid-recording and the file is quietly wrong — after a
-  four-minute wait, with no error. It is the only known defect that produces a
-  broken artefact while reporting success, which is why it sits above the
-  missing tests. Detect `visibilitychange` during a recording and either pause
-  or fail loudly.
-- **Status:** Not started
-
-### 2. Commit an end-to-end test for the three export routes
-
-- **Source:** MVP build. The routes were verified by driving Chrome with
-  `MediaRecorder.isTypeSupported` masked to force each one, then decoding each
-  output to confirm H.264 + AAC at 1080×1920 — but that check lives in a scratch
-  script, not the repo.
-- **Why it matters:** Only one of the three routes runs in any given browser, so
-  two can break without anyone noticing locally. One already did: passing
-  `classWorkerURL` to `ffmpeg.load()` hung the conversion with no error
-  surfaced anywhere (`decisions/0001`).
-- **Status:** Not started
-
-### 3. Cover the gap between the keyboard and the reducer
-
-- **Source:** `docs/quality.md`, testing strategy — named there as the honest gap.
-- **Why it matters:** The reducer is well covered and the browser is checked by
-  hand, but nothing proves the two meet — that a Space press actually stamps
-  what `stamp-cursor` expects. That seam carries the product's main promise.
-- **Status:** Not started
-
-### 4. Decide whether stanza breaks should carry visual weight
+### 1. Decide whether stanza breaks should carry visual weight
 
 - **Source:** `specs/2026-09-19-lyric-video-mvp.md` §9, open questions.
 - **Why it matters:** Blank lines in the `.txt` are dropped, so a chorus reads
@@ -64,13 +33,24 @@ than by effort.
   not a bug — it needs a decision before it needs code.
 - **Status:** Spec needed
 
-### 5. Evaluate WebCodecs for export
+### 2. Evaluate WebCodecs for export
 
 - **Source:** `decisions/0001`, alternatives considered.
 - **Why it matters:** Faster than realtime, drops the 32MB ffmpeg dependency,
   and gives real H.264 everywhere. The cost is hand-writing an MP4 muxer. Worth
-  revisiting once support settles — deliberately last, because the current
-  pipeline works on every target browser.
+  revisiting once support settles — deliberately after the stanza question,
+  because the current pipeline works on every target browser and the stanza
+  decision changes what the videos look like.
+- **Status:** Not started
+
+### 3. Deploy it somewhere
+
+- **Source:** Surfaced while filling `docs/architecture.md` — the deployment
+  section is the one that stayed empty.
+- **Why it matters:** The tool currently needs a local checkout to use, which
+  makes it easy to not bother. Any static host works; the only requirement is
+  that it serves `.wasm` as `application/wasm`, or the conversion fallback
+  fails to load on the browsers that need it.
 - **Status:** Not started
 
 ---

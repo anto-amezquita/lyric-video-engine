@@ -16,7 +16,8 @@ npm run dev
 Then open http://localhost:5173.
 
 ```bash
-npm test          # reducer and helper tests
+npm test          # reducer, helper and contrast tests
+npm run test:e2e  # export routes and keyboard sync, in a real browser
 npm run lint      # oxlint
 npm run build     # static bundle in dist/
 npm run preview   # serve that bundle
@@ -111,8 +112,10 @@ or a ref — never in React state.
 - **Export runs in realtime.** A four-minute song takes four minutes. Recording
   the live canvas is what guarantees the export matches the preview; the faster
   alternatives are weighed in `decisions/0001`.
-- **Keep the tab visible while exporting.** `requestAnimationFrame` throttles in
-  a background tab, which would freeze frames mid-recording.
+- **Switching tabs pauses the export** rather than corrupting it.
+  `requestAnimationFrame` throttles in a hidden tab, which would otherwise
+  freeze the frames while the audio kept going, so the recorder and the clock
+  both stop until you come back.
 - **Blank lines are stanza separators** and are dropped, so a chorus currently
   reads continuous with the verse before it. Open question in the spec.
 - **Re-import matches by position.** Reordering lines between demo versions

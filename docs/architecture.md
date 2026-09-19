@@ -274,16 +274,20 @@ get pinned.
 
 ### Integration tests
 
-Not set up. The reducer tests cover the state layer; the browser layer is
-covered manually for now.
+`e2e/sync.test.mjs` covers the seam between the keyboard and the reducer — the
+one place the unit tests could not reach.
 
 ### End-to-end tests
 
-Not set up, and worth adding: the export pipeline has three routes (direct,
-remux, transcode) and only one of them runs in any given browser. They were
-verified by driving Chrome with `MediaRecorder.isTypeSupported` masked to force
-each route. That check belongs in a committed suite. Tracked in
-`docs/backlog.md`.
+`e2e/export.test.mjs`, run with `npm run test:e2e`. It forces each of the three
+export routes and decodes the result, and it covers the backgrounded-tab pause.
+
+Two things about this suite are deliberate. It drives the installed Chrome via
+`channel: 'chrome'`, so no browser binaries are downloaded. And it simulates the
+page-visibility *signal* rather than genuinely backgrounding a tab, because
+Playwright cannot do the latter — `bringToFront` leaves `document.hidden` false
+in both headless and headed Chrome. The handler's contract is what we own; the
+throttling behind it is the browser's.
 
 ### Visual regression
 

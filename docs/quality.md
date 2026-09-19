@@ -210,16 +210,20 @@ once. Contrast is also a unit test — `tests/contrast.test.js` reads
 `tokens.css`, so an illegible token fails `npm test` rather than a review.
 
 ### Integration tests
-Not set up. The reducer covers the state layer and the browser layer is
-verified by hand. The honest gap is between them — nothing currently proves the
-keyboard sync pass writes what the reducer expects.
+`e2e/sync.test.mjs` drives real keypresses in a real browser and asserts what
+lands in the line list: that Space stamps at the playhead, that the offset is
+subtracted, that typing a lyric containing spaces stamps nothing, and that a
+text edit moves neither a timestamp nor a line.
 
 ### End-to-end tests
-The export pipeline, which has three routes and runs only one of them in any
-given browser. They were verified by driving Chrome with
-`MediaRecorder.isTypeSupported` masked to force each route in turn, and each
-output was decoded to confirm H.264 video plus AAC audio at 1080×1920. That
-check is not yet committed, which is the top backlog item.
+`e2e/export.test.mjs`, run with `npm run test:e2e`. It forces each of the three
+export routes by masking `MediaRecorder.isTypeSupported`, then decodes every
+output to confirm H.264 video plus AAC audio at 1080×1920, matching durations,
+and frames that actually differ across the file.
+
+It uses the Chrome installed on the machine rather than a Playwright-managed
+build, so `npm ci` pulls no browser binaries and the suite skips cleanly where
+Chrome is missing.
 
 ### Manual QA
 - A full sync pass against a real song, by ear.
