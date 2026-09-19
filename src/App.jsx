@@ -42,7 +42,9 @@ export default function App() {
     engine,
     filename: safeFilename(lyricsName ?? engine.audioFile?.name),
   })
-  const recording = exporter.status.phase === 'recording'
+  const capture = ['recording', 'paused'].includes(exporter.status.phase)
+    ? exporter.status.phase
+    : null
 
   const loadLyrics = useCallback(
     (file) => {
@@ -176,7 +178,7 @@ export default function App() {
             style={style}
             duration={engine.duration}
             engine={engine}
-            recording={recording}
+            capture={capture}
             onActiveIndexChange={setActiveIndex}
           />
           <ExportPanel

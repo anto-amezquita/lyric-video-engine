@@ -23,7 +23,7 @@ export function CanvasPreview({
   style,
   duration,
   engine,
-  recording,
+  capture,
   onActiveIndexChange,
 }) {
   const animRef = useRef(createAnimState())
@@ -77,7 +77,11 @@ export function CanvasPreview({
   return (
     <div className="preview">
       <div className="preview__frame">
-        {recording && <span className="preview__badge">REC</span>}
+        {capture && (
+          <span className="preview__badge" data-state={capture}>
+            {capture === 'paused' ? 'PAUSED' : 'REC'}
+          </span>
+        )}
         <canvas
           ref={canvasRef}
           className="preview__canvas"

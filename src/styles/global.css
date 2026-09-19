@@ -620,6 +620,12 @@ input[type='checkbox'] {
   animation: pulse 1.2s var(--ease-standard) infinite;
 }
 
+/* The pulse means "capturing right now", so a paused badge holds still. */
+.preview__badge[data-state='paused']::before {
+  background: var(--warning);
+  animation: none;
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.25;

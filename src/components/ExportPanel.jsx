@@ -3,7 +3,8 @@ const TONE = { error: 'error', done: 'success' }
 /** Export controls plus whatever the pipeline is currently doing. */
 export function ExportPanel({ exporter, disabled, reason }) {
   const { status, start, cancel, downloadFallback, hasFallback } = exporter
-  const busy = status.phase === 'recording' || status.phase === 'converting'
+  const capturing = status.phase === 'recording' || status.phase === 'paused'
+  const busy = capturing || status.phase === 'converting'
   const showProgress = busy && status.progress > 0
 
   return (
@@ -11,7 +12,7 @@ export function ExportPanel({ exporter, disabled, reason }) {
       <div className="btn-row">
         {busy ? (
           <button type="button" className="btn btn--danger" onClick={cancel}>
-            {status.phase === 'recording' ? 'Stop recording' : 'Cancel'}
+            {capturing ? 'Stop recording' : 'Cancel'}
           </button>
         ) : (
           <button type="button" className="btn btn--primary" onClick={start} disabled={disabled}>

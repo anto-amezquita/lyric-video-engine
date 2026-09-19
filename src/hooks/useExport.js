@@ -8,6 +8,9 @@ import {
 
 const IDLE = { phase: 'idle', message: '', progress: 0 }
 
+const RECORDING_MESSAGE = 'Recording in realtime. Switching tabs pauses the recording.'
+const PAUSED_MESSAGE = 'Paused — this tab is in the background. Come back to carry on.'
+
 /**
  * Record one realtime playthrough of the preview canvas and hand back an .mp4.
  *
@@ -18,12 +21,12 @@ const IDLE = { phase: 'idle', message: '', progress: 0 }
 export function useExport({ canvasRef, engine, filename }) {
   const [status, setStatus] = useState(IDLE)
   const recorderRef = useRef(null)
-  const unsubscribeRef = useRef(null)
+  const teardownRef = useRef([])
   const fallbackRef = useRef(null)
 
   const cleanup = useCallback(() => {
-    unsubscribeRef.current?.()
-    unsubscribeRef.current = null
+    for (const undo of teardownRef.current) undo()
+    teardownRef.current = []
     recorderRef.current = null
   }, [])
 
@@ -92,11 +95,7 @@ export function useExport({ canvasRef, engine, filename }) {
     }
 
     fallbackRef.current = null
-    setStatus({
-      phase: 'recording',
-      message: 'Recording in realtime — keep this tab visible.',
-      progress: 0,
-    })
+    setStatus({ phase: 'recording', message: RECORDING_MESSAGE, progress: 0 })
 
     const audioTrack = await engine.getAudioStreamTrack()
     const audio = engine.audioRef.current
@@ -116,16 +115,56 @@ export function useExport({ canvasRef, engine, filename }) {
       onStop: (blob) => finish(blob, format),
     })
 
-    const stop = () => recorderRef.current?.state === 'recording' && recorderRef.current.stop()
+    const stop = () => recorderRef.current?.state !== 'inactive' && recorderRef.current?.stop()
     audio?.addEventListener('ended', stop, { once: true })
+    teardownRef.current.push(() => audio?.removeEventListener('ended', stop))
 
-    unsubscribeRef.current = engine.subscribe((time) => {
+    /*
+     * A hidden tab throttles requestAnimationFrame, so the canvas stops
+     * updating while captureStream keeps emitting the last frame — the
+     * recording would run to full length with the lyrics frozen, and report
+     * success. Pause both the recorder and the clock instead.
+     *
+     * Order matters. Resuming the recorder before the audio inserts a few
+     * frozen milliseconds into *both* tracks, which stays in sync; starting
+     * the audio first would drop audio that the recorder never captured.
+     */
+    const onVisibilityChange = () => {
+      const recorder = recorderRef.current
+      if (!recorder) return
+      if (document.hidden) {
+        if (recorder.state !== 'recording') return
+        recorder.pause()
+        engine.pause()
+        setStatus((previous) =>
+          previous.phase === 'recording'
+            ? { ...previous, phase: 'paused', message: PAUSED_MESSAGE }
+            : previous,
+        )
+      } else {
+        if (recorder.state !== 'paused') return
+        recorder.resume()
+        engine.play()
+        setStatus((previous) =>
+          previous.phase === 'paused'
+            ? { ...previous, phase: 'recording', message: RECORDING_MESSAGE }
+            : previous,
+        )
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    teardownRef.current.push(() =>
+      document.removeEventListener('visibilitychange', onVisibilityChange),
+    )
+
+    const unsubscribe = engine.subscribe((time) => {
       const total = audio?.duration || 0
       if (total)
         setStatus((previous) =>
           previous.phase === 'recording' ? { ...previous, progress: time / total } : previous,
         )
     })
+    teardownRef.current.push(unsubscribe)
 
     await engine.play()
   }, [canvasRef, engine, finish])
@@ -135,7 +174,8 @@ export function useExport({ canvasRef, engine, filename }) {
     recorderRef.current = null
     cleanup()
     engine.pause()
-    if (recorder?.state === 'recording') {
+    /* 'paused' counts too — cancelling from a backgrounded pause must still stop. */
+    if (recorder && recorder.state !== 'inactive') {
       recorder.ondataavailable = null
       recorder.onstop = null
       recorder.stop()
