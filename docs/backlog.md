@@ -24,26 +24,58 @@ Ordered by what it costs if it goes wrong, read against `product-north-star.md`
 ("reliable enough that the export is never the reason a video is late") rather
 than by effort.
 
-### 1. Decide whether stanza breaks should carry visual weight
+### 1. Build line end times and empty-frame gaps
 
-- **Source:** `specs/2026-09-19-lyric-video-mvp.md` §9, open questions.
-- **Why it matters:** Blank lines in the `.txt` are dropped, so a chorus reads
-  continuous with the verse before it. Keeping them as spacing, or as a hold on
-  an empty frame, changes how the video breathes. This is a product question,
-  not a bug — it needs a decision before it needs code.
-- **Status:** Spec needed
+- **Source:** `specs/2026-09-19-line-end-times-and-gaps.md`.
+- **Why it matters:** A line currently stays on screen until the next one
+  starts, so the last lyric sits through every instrumental break and the
+  whole outro. End times fix that, and they're the data automatic alignment
+  will write into.
+- **Status:** Spec written, ready to build
 
-### 2. Evaluate WebCodecs for export
+### 2. Spike automatic line alignment
+
+- **Source:** Decided 2026-09-19 while specifying end times. Manual syncing
+  has to be redone whenever a demo is recut beyond an intro shift, and the
+  time goes to syncing instead of music.
+- **Why it matters:** This is the biggest time saving on the table, and the
+  least certain. Run two approaches in the browser against a vocal separated
+  with Ultimate Vocal Remover:
+  - **Whisper word timestamps** (base/small), with the transcript matched to
+    the known lyric lines. One multilingual model covers English and Spanish.
+  - **CTC forced alignment** (wav2vec2), given the known lyrics, so it only
+    has to find the timing. Likely tighter, especially on line ends, but
+    needs one model per language (English and Spanish), and the Spanish ones
+    are larger. MMS covers both but is likely too big for the browser.
+
+  Songs are mostly English or Spanish. Test on 2–3 real demos covering both,
+  compare start and end errors against manual timings, and note model size,
+  speed and where it fails (repeated choruses, dense mixes, mixed-language
+  lines). If it holds up, write an ADR (model, bundling vs. cached download,
+  given the local-first rule) and a spec. Alignment against the full mix is
+  worth one run too, as a baseline.
+- **Status:** Not started — waiting on separated vocals for 2–3 demos
+
+### 3. Separate vocals inside the tool
+
+- **Source:** Follows from #2. Separation currently needs UVR as a separate
+  app for every recut, since Ableton Live Intro has no stem separation.
+- **Why it matters:** The goal is to drop in the mix and get a draft sync
+  back. It costs a second model (roughly 80MB+) and slower processing, so it's
+  only worth doing if the spike shows alignment is good enough.
+- **Status:** Blocked on #2
+
+### 4. Evaluate WebCodecs for export
 
 - **Source:** `decisions/0001`, alternatives considered.
 - **Why it matters:** Faster than realtime, drops the 32MB ffmpeg dependency,
   and gives real H.264 everywhere. The cost is hand-writing an MP4 muxer. Worth
-  revisiting once support settles — deliberately after the stanza question,
-  because the current pipeline works on every target browser and the stanza
-  decision changes what the videos look like.
+  revisiting once support settles — deliberately after end times and
+  alignment, because the current pipeline works on every target browser and
+  those change what the videos look like.
 - **Status:** Not started
 
-### 3. Deploy it somewhere
+### 5. Deploy it somewhere
 
 - **Source:** Surfaced while filling `docs/architecture.md` — the deployment
   section is the one that stayed empty.
@@ -52,6 +84,15 @@ than by effort.
   that it serves `.wasm` as `application/wasm`, or the conversion fallback
   fails to load on the browsers that need it.
 - **Status:** Not started
+
+### 6. Decide whether long gaps need a marker
+
+- **Source:** Deferred in `specs/2026-09-19-line-end-times-and-gaps.md`.
+- **Why it matters:** A long intro or solo (roughly 5–8s+) rendered as an
+  empty frame may look like a frozen or broken video, especially on a muted
+  feed. A note icon or dots on long gaps only, as an option, is the likely
+  answer, but not before watching real renders with #1 in place.
+- **Status:** Waiting on #1
 
 ---
 

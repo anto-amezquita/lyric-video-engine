@@ -227,7 +227,9 @@ None. There is no backend.
 
 ### Open questions
 
-- Should stanza breaks (blank lines) carry visual weight in the render?
+- ~~Should stanza breaks (blank lines) carry visual weight in the render?~~
+  Resolved: gaps come from per-line end times and render as an empty frame.
+  Blank lines stay dropped. See `specs/2026-09-19-line-end-times-and-gaps.md`.
 - Is a fixed 30fps right, or should 60fps be offered for text-heavy songs?
 
 ---
