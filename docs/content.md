@@ -210,23 +210,52 @@ Use helper text to reduce uncertainty, not repeat the label.
 
 ### Dates
 
-[Define preferred format.]
+The product surfaces no dates. Dates in the repo (spec filenames, ADR bodies)
+use `YYYY-MM-DD`, and relative dates are always resolved to absolute ones so
+they still read correctly months later.
 
 ### Times
 
-[Define preferred format.]
+Every time in this product is a position in a song, never a clock time.
+
+- Displayed and typed as `m:ss.cc` — `1:12.40`. Centiseconds, because a
+  tenth is too coarse to place a line against a beat.
+- Always tabular numerals, so a running playhead does not shift the layout.
+- Plain seconds (`72.4`) are accepted on input and normalised on commit. A
+  value that cannot be parsed leaves the stored timestamp alone.
+- Durations read as `0:08.00`; the transport shows `position / duration`.
 
 ### Numbers
 
-[Define separators, decimal usage, rounding rules, and unit handling.]
+- The global offset is shown in whole milliseconds with an explicit sign:
+  `+1200 ms`, `−450 ms`. The sign is the point — it says which way the lyrics
+  moved.
+- Counts are shown as a fraction of the whole when the whole matters:
+  `4/4 stamped`.
+- Video dimensions use `×`, not `x`: `1080 × 1920`.
+- No thousands separators. The only numbers large enough to need them are
+  pixel dimensions, which read better without.
 
 ### Currency
 
-[Define format and locale behaviour.]
+Not applicable. The product has no prices, payments, or plans.
 
 ---
 
 ## Localization
+
+### Language
+
+The interface is English, and there is no localisation layer. With one user who
+reads English fluently, a second language would be cost without benefit — and
+the terms that matter here (timestamp, offset, export, `.mp4`) are the same
+words in Danish practice anyway.
+
+Strings are written inline in the components rather than pulled from a catalogue.
+That is a deliberate trade: it keeps the code readable and would be the first
+thing to undo if this ever gained users who are not the author.
+
+### Rules
 
 - Write strings so they can expand without breaking layouts.
 - Avoid wordplay that will not translate well if localization is expected.

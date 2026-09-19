@@ -2,48 +2,51 @@
 
 ## Purpose
 
-This file defines how the product should express its identity through voice, visual character, and emotional tone.
-
-A brand is not only a logo, palette, or font choice. It is the consistent feeling people get from the product over time — through what it says, how it looks, how it behaves, and what it chooses to emphasise.
-
-This document exists to keep brand expression coherent across product design, content, marketing, and implementation.
-
----
+This file defines how the product should feel, sound, and look.
 
 ## Relationship to the other core files
 
-- `product-north-star.md` defines **what the product is, who it is for, and why it exists**
-- `spec.md` defines **how product work should be specified before it is built**
-- `design.md` defines **how the product should be designed as an interface and system**
-- `brand.md` defines **how the product should feel, sound, and be recognised**
+`product-north-star.md` decides what deserves to exist. This file decides the
+character of what gets built. `design.md` holds the craft rules, and
+`content.md` holds the language rules that follow from what is written here.
+
+## Scope note
+
+This is a personal tool with one user, so several sections of the standard brand
+template do not apply and are marked as such rather than filled in. A brand is
+how a product behaves toward people who do not already know it — that surface
+barely exists here. The sections that remain are the ones that still change
+decisions: how it feels to use, how it speaks, and how it looks.
+
+The visual identity is inherited from the author's personal brand rather than
+invented for this tool. See "Typography" and "Colour" below.
 
 ---
-
-# Brand foundation
 
 ## 1. Brand essence
 
 ### One-line essence
 
-[Write one compact sentence that captures the product at its deepest level.]
+A quiet instrument that keeps up with the work.
 
 ### What we want people to feel
 
-- [Feeling]
-- [Feeling]
-- [Feeling]
+- In rhythm with the song rather than fighting the interface.
+- That a correction is cheap and a mistake is recoverable.
+- That the tool is being straight about what it is doing.
 
 ### What we are not
 
-- not [undesired quality]
-- not [undesired quality]
-- not [undesired quality]
+- Not playful. There is no personality performance here, no celebration when an
+  export finishes.
+- Not a creative suite. It does one job.
+- Not a demo of what the browser can do. The technology is the means.
 
 ---
 
 ## 2. Brand promise
 
-[Describe the dependable value people should expect every time they encounter the product.]
+You will not sync the same song twice.
 
 ---
 
@@ -51,173 +54,148 @@ This document exists to keep brand expression coherent across product design, co
 
 ### We should feel like
 
-- [e.g. a trusted guide]
-- [e.g. a sharp collaborator]
+An instrument — something that rewards knowing it, and gets out of the way once
+you do.
 
 ### We should not feel like
 
-- [e.g. a distant institution]
-- [e.g. an overexcited salesperson]
+An assistant, a wizard, or a service. Nothing here should explain itself twice
+or ask whether you are sure about something reversible.
 
 ### User posture
 
-The product should make users feel:
-
-- [e.g. capable, not dependent]
-- [e.g. informed, not overwhelmed]
-- [e.g. respected, not manipulated]
+Focused and mid-task, with audio playing and a hand on the keyboard. Attention
+is on the song, not the screen. The interface earns its place by not competing
+for that attention.
 
 ---
 
-# Personality
-
 ## 4. Brand attributes
 
-Choose 3–5 core attributes that define the brand character.
+### Precise
 
-### [Attribute]
+Timestamps to the centisecond, an offset in milliseconds, an export whose
+dimensions are stated on screen. Vagueness is the thing being designed out.
 
-**Meaning**  
-[What this means.]
+### Unhurried
 
-**In practice**
-- [How it appears]
-- [How it appears]
+Nothing flashes, bounces, or congratulates. Motion explains where the stack
+moved to and then stops.
 
-**Not**
-- [What it should not become]
+### Honest about cost
+
+Where the product is slow — a four-minute export, a VP9 transcode — it says so
+before you commit, in the units you care about.
+
+### Reversible
+
+Timing is a read-time transform until you commit it. The one destructive action
+asks first.
 
 ---
 
 ## 5. Personality sliders
 
-| Dimension | Lean |
-|---|---|
-| Serious ↔ Playful | [ ] |
-| Minimal ↔ Expressive | [ ] |
-| Warm ↔ Cool | [ ] |
-| Classic ↔ Contemporary | [ ] |
-| Quiet ↔ Bold | [ ] |
-| Expert ↔ Approachable | [ ] |
-| Editorial ↔ Productive | [ ] |
-| Refined ↔ Raw | [ ] |
+| | | |
+|---|---|---|
+| Formal | ———●———— | Casual |
+| Serious | ——●————— | Playful |
+| Understated | ●——————— | Expressive |
+| Calm | ●——————— | Energetic |
+| Precise | ●——————— | Loose |
 
 ---
-
-# Voice and language
 
 ## 6. Voice
 
 ### Our voice is
 
-- [Trait]
-- [Trait]
-- [Trait]
+- Plain. The word you would say out loud, not the impressive one.
+- Specific. "Recording in realtime" rather than "Processing".
+- Direct about consequence. "Expect a few minutes" rather than "This may take a
+  while".
 
 ### Our voice is not
 
-- [Trait]
-- [Trait]
-- [Trait]
+- Chatty, encouraging, or apologetic.
+- Branded. No product name in the interface copy.
+- Technical for its own sake. "This browser recorded VP8/VP9" appears because it
+  explains a wait the user is about to sit through, not to show working.
 
 ---
 
 ## 7. Tone by context
 
 ### Product UI
-- [Trait]
-- [Trait]
+
+Terse and factual. Labels describe actions: "Export .mp4", "Bake in",
+"Clear all timestamps".
 
 ### Onboarding
-- [Trait]
-- [Trait]
+
+None, and none planned. The hints under the transport and the offset are the
+whole of it — they sit next to the control they explain and do not need
+dismissing.
 
 ### Errors
-- [Trait]
-- [Trait]
+
+Say what happened, then what can still be done. The conversion failure names the
+error and points at the raw recording rather than leaving the user with nothing.
 
 ### Marketing
-- [Trait]
-- [Trait]
+
+Not applicable. There is no marketing surface.
 
 ### Empty states
-- [Trait]
-- [Trait]
+
+State the next action without blame: "Load a .txt file to break it into lines."
 
 ### Sensitive moments
-- [Trait]
-- [Trait]
+
+The only one is losing work. Clearing all timestamps names the number being
+cleared and confirms the lyrics survive.
 
 ---
 
 ## 8. Writing rules
 
-- Lead with meaning.
-- Prefer plain language over brand theatre.
-- Be specific rather than generic.
-- Use active voice where possible.
-- Avoid filler, buzzwords, and claims the product cannot prove.
-- Buttons should describe the action.
-- Headlines should carry an idea, not just decorate the page.
-- Microcopy should reduce uncertainty.
-
 ### Prefer
 
-- [Good example]
-- [Good example]
+- Verbs that describe the actual action.
+- Numbers over adjectives — "4/4 stamped", "1080 × 1920", "+1200 ms".
+- Naming the key inline where it is the fastest instruction: "tap Space".
 
 ### Avoid
 
-- [Weak example]
-- [Weak example]
+- "Please", "Oops", "Successfully".
+- Exclamation marks.
+- Naming the product inside the product.
+- Explaining the same thing in two places.
 
 ---
-
-# Visual identity
 
 ## 9. Visual direction
 
 ### The product should feel
 
-- [Quality]
-- [Quality]
-- [Quality]
+Like a dark, matte working surface with one live colour on it.
 
 ### The product should avoid feeling
 
-- [Quality]
-- [Quality]
-- [Quality]
+Glassy, glossy, neon, or gradient-heavy. Nothing should compete with the
+preview, which is the only thing on screen whose appearance actually ships.
 
 ### Visual keywords
 
-- [Keyword]
-- [Keyword]
-- [Keyword]
+Matte. Warm-dark. Typographic. Still.
 
 ---
 
 ## 10. Logo
 
-### Role
-
-[How the logo should function in the system.]
-
-### Variants
-
-- primary logo
-- compact logo
-- symbol / mark
-- monochrome version
-- reversed version
-- app icon / favicon
-
-### Rules
-
-- Preserve approved proportions.
-- Use approved colour versions only.
-- Do not distort, outline, shadow, animate, or decorate the logo unless explicitly defined.
-- Use the simplest valid version for the context.
+Not applicable. The product has a favicon — a 9:16 frame with one bright line
+among dim ones — and a wordmark set in the UI typeface. Neither is a logo system
+and neither needs one.
 
 ---
 
@@ -225,21 +203,21 @@ Choose 3–5 core attributes that define the brand character.
 
 ### Type roles
 
-- display / headline: [Typeface]
-- body: [Typeface]
-- interface: [Typeface]
-- mono, if relevant: [Typeface]
+- Display and UI: Schibsted Grotesk, 600 for headings, 400 for body.
+- Code, timestamps, and numbers: JetBrains Mono.
+- Rendered video: Schibsted Grotesk 600.
 
 ### Typographic character
 
-[Describe how the type system should feel.]
+Neutral grotesque, tight but not condensed. The video renders in the same face
+as the interface, so what is composed and what is exported share a voice.
 
 ### Rules
 
-- Use type to create hierarchy before adding decoration.
-- Keep the number of styles deliberate and limited.
-- Let typography carry some of the brand character.
-- Preserve readability in product contexts.
+- Tabular numerals wherever a timestamp can change — a shifting playhead must
+  not make the layout twitch.
+- Monospace is reserved for values, never for prose.
+- One type scale, defined in `tokens.css`.
 
 ---
 
@@ -247,23 +225,24 @@ Choose 3–5 core attributes that define the brand character.
 
 ### Colour roles
 
-- brand primary: [ ]
-- brand secondary: [ ]
-- accent: [ ]
-- neutral scale: [ ]
-- semantic colours: [ ]
-- background / surface colours: [ ]
+Warm neutrals carry everything structural. One teal accent marks what is live:
+the active timestamp, the primary action, the progress bar.
 
 ### Colour personality
 
-[Describe how colour should feel.]
+Warm-dark and matte, with a single cool accent for contrast against it.
 
 ### Rules
 
-- Use colour with intent.
-- Let neutrals carry most of the interface if the brand benefits from restraint.
-- Reserve accent colour for action, emphasis, or memorable moments.
-- Maintain accessibility and semantic consistency.
+- Values live in `src/styles/tokens.css`, split into a raw scale and semantic
+  roles. Components read the semantic layer only.
+- Scale names mirror the personal brand token set, so swapping in canonical
+  values is a one-file change.
+- This tool uses the bold expression — teal as accent — because the default
+  charcoal accent has no contrast to give on a dark surface.
+- Accent is for state, never decoration. If everything is accented, nothing is.
+- Contrast is enforced, not judged: `tests/contrast.test.js` fails the build if
+  a token drops below 4.5:1 for text or 3:1 for a component boundary.
 
 ---
 
@@ -271,34 +250,25 @@ Choose 3–5 core attributes that define the brand character.
 
 ### Shape
 
-[Describe the physical language: sharp, rounded, geometric, organic, etc.]
+Soft rectangles. A small radius on controls, a larger one on the video frame,
+nothing circular except the scrub thumb.
 
 ### Material feeling
 
-[Describe the surface language: flat, layered, tactile, crisp, atmospheric, etc.]
+Matte and flat. Depth comes from surface lightness, not shadow.
 
 ### Rules
 
-- Radius, border, depth, and surface treatment should reinforce the brand personality.
-- Similar components should share a similar physical language.
-- Decorative form should not undermine usability.
+- No drop shadows. Elevation is `--surface` against `--surface-elevated`.
+- Borders clarify a boundary or they are not there.
+- One radius scale.
 
 ---
 
 ## 14. Imagery
 
-### Direction
-
-- [Quality]
-- [Quality]
-- [Quality]
-
-### Rules
-
-- Use imagery only when it adds meaning, emotion, or recognition.
-- Choose a consistent treatment across the product and communications.
-- Avoid generic stock imagery.
-- Keep crops, lighting, colour treatment, and composition aligned with the brand character.
+Not applicable. The product contains no imagery. The only picture it makes is
+the video, and that is the user's content.
 
 ---
 
@@ -306,14 +276,15 @@ Choose 3–5 core attributes that define the brand character.
 
 ### Direction
 
-[Describe whether icons should feel geometric, rounded, outlined, filled, technical, friendly, etc.]
+Typographic glyphs rather than an icon set — `▶`, `❚❚`, `◉`, `+`, `×`. A tool
+this small does not need an icon dependency.
 
 ### Rules
 
-- Use one coherent icon style.
-- Match stroke weight and visual density across the set.
-- Prefer common symbols when clarity matters.
-- Icons should support meaning, not carry ambiguous interactions alone.
+- Every glyph control carries a `title` and an `aria-label`. A glyph is never
+  the only thing naming an action.
+- If the glyph set ever outgrows what typography can carry clearly, adopt one
+  icon family rather than mixing.
 
 ---
 
@@ -321,88 +292,47 @@ Choose 3–5 core attributes that define the brand character.
 
 ### Motion should feel
 
-- [Quality]
-- [Quality]
-- [Quality]
+Like the lyric stack settling, not like an interface animating.
 
 ### Rules
 
-- Motion should support the product before expressing the brand.
-- Use consistent easing, duration, and scale.
-- Let key transitions carry personality.
-- Avoid ornamental motion that slows people down.
-- Respect reduced-motion preferences.
+- One eased scroll value drives the whole canvas stack. Nothing animates
+  independently.
+- UI transitions are short and limited to colour and opacity.
+- Nothing animates on load.
+- Anything decorative — the REC pulse — is removed under
+  `prefers-reduced-motion`. Anything that carries meaning stays.
 
 ---
-
-# Brand in use
 
 ## 17. Brand expression by context
 
 ### Product interface
 
-The brand should appear through:
-
-- typography
-- spacing
-- colour restraint
-- motion behaviour
-- copy
-- component details
+The full expression, and the only one that exists today.
 
 ### Marketing site
 
-The brand may become more expressive through:
-
-- larger typography
-- richer imagery
-- bolder composition
-- narrative copy
-- more atmospheric motion
+Not applicable.
 
 ### Social content
 
-The brand should remain recognisable through:
-
-- consistent voice
-- repeatable layouts
-- colour and type signatures
-- a clear point of view
+The exported video is the only artefact that leaves this tool, and it carries no
+branding at all — no watermark, no name, no end card. It is the user's video.
+This is deliberate and should stay that way.
 
 ### Documentation
 
-Documentation should feel:
-
-- practical
-- clear
-- structured
-- aligned with the product voice
+`README.md` and the files in `docs/`. Plain, specific, and written so the
+reasoning survives the session it was decided in.
 
 ---
 
 ## 18. Brand decision checklist
 
-Before introducing a new visual or verbal direction, ask:
-
-- Does this support the product’s purpose?
-- Does it feel like the same brand?
-- Does it improve clarity or recognition?
-- Is it accessible?
-- Is it durable, or just fashionable?
-- Can it scale across product and communication?
-- Does it add something meaningful, or only more?
-
----
-
-# Final review checklist
-
-- Is the brand essence clear?
-- Are the core attributes specific enough to guide decisions?
-- Is the audience relationship defined?
-- Is the voice distinct and usable?
-- Are visual choices connected to personality, not arbitrary taste?
-- Are typography, colour, imagery, shape, and motion aligned?
-- Are there clear boundaries around what the brand is not?
-- Can the brand appear consistently across product, marketing, and content?
-- Does the brand strengthen the product rather than sit on top of it?
-- Could another designer or writer extend the brand without guessing its core character?
+- Does it compete with the preview for attention?
+- Does it use accent for state rather than decoration?
+- Does the copy name the action, in the fewest plain words?
+- Does it perform personality where it could just be quiet?
+- Does it hold up under `prefers-reduced-motion`?
+- Does it put anything on the exported video that is not the user's?

@@ -127,11 +127,15 @@ Check relevant breakpoints and input modes.
 
 ### Define project targets
 
-- initial load: [ ]
-- interaction responsiveness: [ ]
-- image handling: [ ]
-- bundle expectations: [ ]
-- server response expectations: [ ]
+- initial load: under 100kB gzipped for the app bundle. Currently ~77kB.
+- interaction responsiveness: the canvas holds 60fps while the lyric editor
+  stays typable. Nothing that runs per frame may pass through React state.
+- image handling: the product ships no images. The only large asset is the
+  ffmpeg.wasm core (32MB), which must stay behind a dynamic import and must
+  never load on a path that does not need it.
+- bundle expectations: no component library, no CSS framework. A new dependency
+  needs a reason recorded in `/decisions`.
+- server response expectations: not applicable — there is no server.
 
 ### General expectations
 
@@ -148,17 +152,26 @@ Check relevant breakpoints and input modes.
 
 ### Supported browsers
 
-- [Browser / version]
-- [Browser / version]
+- Chrome (current) — primary. Records MP4 directly.
+- Safari 17+ — records MP4 directly.
+- Firefox (current) — records WebM; export goes through in-browser conversion.
+- Edge (current) — Chromium, behaves as Chrome.
 
 ### Supported devices
 
-- [Device class]
-- [Device class]
+- Desktop, mouse and keyboard — the target. The sync pass assumes a keyboard.
+- Tablet — the layout collapses and the preview is usable for review, but
+  syncing without a keyboard is not a supported workflow.
 
 ### Degradation rules
 
-[Describe what must still work in less capable environments.]
+A browser that cannot record a canvas stream must say so plainly and disable
+export rather than failing at the end of a four-minute pass. A browser without
+`localStorage` must still run — persistence is a convenience, not a feature, and
+every access to it is already wrapped.
+
+Without JavaScript there is no product. That is acceptable and not worth
+designing around.
 
 ---
 
@@ -190,19 +203,34 @@ When relevant:
 ## 12. Testing expectations
 
 ### Unit tests
-[What normally deserves unit tests.]
+The reducer and the pure helpers, and specifically the guarantees the product
+rests on: a text edit must not move an index or a timestamp, a re-import must
+carry timestamps over by position, and baking an offset must fold it in exactly
+once. Contrast is also a unit test — `tests/contrast.test.js` reads
+`tokens.css`, so an illegible token fails `npm test` rather than a review.
 
 ### Integration tests
-[What normally deserves integration tests.]
+Not set up. The reducer covers the state layer and the browser layer is
+verified by hand. The honest gap is between them — nothing currently proves the
+keyboard sync pass writes what the reducer expects.
 
 ### End-to-end tests
-[What normally deserves E2E coverage.]
+The export pipeline, which has three routes and runs only one of them in any
+given browser. They were verified by driving Chrome with
+`MediaRecorder.isTypeSupported` masked to force each route in turn, and each
+output was decoded to confirm H.264 video plus AAC audio at 1080×1920. That
+check is not yet committed, which is the top backlog item.
 
 ### Manual QA
-[What should still be checked manually.]
+- A full sync pass against a real song, by ear.
+- That the exported file actually plays where it is going to be posted.
+- Tab order and focus visibility after any layout change.
 
 ### Regression checks
-[What existing behaviour may be affected.]
+Anything touching the reducer risks the decoupling guarantees — run `npm test`.
+Anything touching `tokens.css` risks contrast — same command. Anything touching
+`renderFrame.js` or the canvas element risks the export, because the export
+records that exact canvas.
 
 ---
 
@@ -216,7 +244,7 @@ Before shipping:
 - [ ] Responsive behaviour checked
 - [ ] Tests passing
 - [ ] Lint/type checks passing
-- [ ] Analytics implemented where needed
+- [ ] ~~Analytics implemented where needed~~ — not applicable, the product has none
 - [ ] Documentation updated
 - [ ] Important decisions recorded
 - [ ] Rollback or recovery considered if relevant
@@ -227,11 +255,11 @@ Before shipping:
 
 After shipping:
 
-- [ ] Core flows verified in production
-- [ ] Errors monitored
-- [ ] Analytics checked
+- [ ] Core flows verified in the built bundle (`npm run preview`), not just dev
+- [ ] ~~Errors monitored~~ — not applicable, no server and no telemetry
+- [ ] ~~Analytics checked~~ — not applicable
 - [ ] Performance checked
-- [ ] User feedback reviewed when available
+- [ ] The tool was actually used on a real song since the change
 
 ---
 

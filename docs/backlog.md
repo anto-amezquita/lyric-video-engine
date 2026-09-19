@@ -20,39 +20,57 @@ Its job is narrow on purpose: a session should be able to open this file and kno
 
 ## 2. Open items
 
-### Commit an end-to-end test for the three export routes
+Ordered by what it costs if it goes wrong, read against `product-north-star.md`
+("reliable enough that the export is never the reason a video is late") rather
+than by effort.
 
-- **Source:** MVP build. The routes were verified by driving Chrome with
-  `MediaRecorder.isTypeSupported` masked to force each one, but that check lives
-  in a scratch script, not the repo.
-- **Why it matters:** Only one of the three routes runs in any given browser, so
-  two of them can break without anyone noticing locally. One of them already did
-  — see the `classWorkerURL` note in `decisions/0001`.
-- **Status:** Not started
-
-### Decide whether stanza breaks should carry visual weight
-
-- **Source:** `specs/2026-09-19-lyric-video-mvp.md` §9, open questions.
-- **Why it matters:** Blank lines in the `.txt` are currently dropped, so a
-  chorus and the verse before it read as one continuous stack. Keeping them as
-  spacing, or as a hold on an empty frame, changes how the video breathes.
-- **Status:** Spec needed
-
-### Handle a backgrounded tab during export
+### 1. Handle a backgrounded tab during export
 
 - **Source:** MVP build, known limitation.
 - **Why it matters:** `requestAnimationFrame` throttles when the tab is hidden,
-  which freezes frames mid-recording. The UI currently just asks the user not to
-  do that. Detecting `visibilitychange` and pausing the recording, or warning
-  loudly, would stop people shipping a broken take.
+  so frames freeze mid-recording and the file is quietly wrong — after a
+  four-minute wait, with no error. It is the only known defect that produces a
+  broken artefact while reporting success, which is why it sits above the
+  missing tests. Detect `visibilitychange` during a recording and either pause
+  or fail loudly.
 - **Status:** Not started
 
-### Evaluate WebCodecs for export
+### 2. Commit an end-to-end test for the three export routes
+
+- **Source:** MVP build. The routes were verified by driving Chrome with
+  `MediaRecorder.isTypeSupported` masked to force each one, then decoding each
+  output to confirm H.264 + AAC at 1080×1920 — but that check lives in a scratch
+  script, not the repo.
+- **Why it matters:** Only one of the three routes runs in any given browser, so
+  two can break without anyone noticing locally. One already did: passing
+  `classWorkerURL` to `ffmpeg.load()` hung the conversion with no error
+  surfaced anywhere (`decisions/0001`).
+- **Status:** Not started
+
+### 3. Cover the gap between the keyboard and the reducer
+
+- **Source:** `docs/quality.md`, testing strategy — named there as the honest gap.
+- **Why it matters:** The reducer is well covered and the browser is checked by
+  hand, but nothing proves the two meet — that a Space press actually stamps
+  what `stamp-cursor` expects. That seam carries the product's main promise.
+- **Status:** Not started
+
+### 4. Decide whether stanza breaks should carry visual weight
+
+- **Source:** `specs/2026-09-19-lyric-video-mvp.md` §9, open questions.
+- **Why it matters:** Blank lines in the `.txt` are dropped, so a chorus reads
+  continuous with the verse before it. Keeping them as spacing, or as a hold on
+  an empty frame, changes how the video breathes. This is a product question,
+  not a bug — it needs a decision before it needs code.
+- **Status:** Spec needed
+
+### 5. Evaluate WebCodecs for export
 
 - **Source:** `decisions/0001`, alternatives considered.
-- **Why it matters:** It would make export faster than realtime, drop the 32MB
-  ffmpeg dependency, and give real H.264 everywhere. The cost is hand-writing an
-  MP4 muxer. Worth revisiting once support settles.
+- **Why it matters:** Faster than realtime, drops the 32MB ffmpeg dependency,
+  and gives real H.264 everywhere. The cost is hand-writing an MP4 muxer. Worth
+  revisiting once support settles — deliberately last, because the current
+  pipeline works on every target browser.
 - **Status:** Not started
 
 ---
