@@ -41,10 +41,17 @@
   --surface: #211c17;
   --surface-elevated: var(--warm-800);
   --text-primary: var(--warm-50);
-  --text-secondary: var(--warm-400);
-  --text-muted: var(--warm-500);
+  /*
+   * Text steps are pitched for a dark surface, not picked by scale position:
+   * every one clears 4.5:1 against --background, --surface and
+   * --surface-elevated. --border-strong clears 3:1, which UI component
+   * boundaries need. Re-check with the contrast script before changing any of
+   * them.
+   */
+  --text-secondary: var(--warm-300);
+  --text-muted: var(--warm-400);
   --border-subtle: #332c25;
-  --border-strong: var(--warm-700);
+  --border-strong: var(--warm-500);
   --action-primary: var(--teal-500);
   --action-primary-hover: var(--teal-600);
   --action-primary-text: #06231f;

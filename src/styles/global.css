@@ -73,6 +73,11 @@ select {
   color: var(--text-secondary);
 }
 
+.app__title,
+.app__subtitle {
+  text-wrap: balance;
+}
+
 .app__hint {
   margin-left: auto;
   font-family: var(--font-mono);
@@ -115,6 +120,40 @@ select {
   .pane--preview {
     border-left: none;
     border-top: 1px solid var(--border-subtle);
+  }
+
+  /* No keyboard to shortcut with, and the lyric is what matters on a narrow screen. */
+  .app__hint {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .line {
+    grid-template-columns: 2rem 5rem 1fr;
+    grid-template-areas:
+      'index time actions'
+      'text  text text';
+    row-gap: var(--space-1);
+    padding: var(--space-2);
+  }
+
+  .line__index {
+    grid-area: index;
+  }
+
+  .line__time {
+    grid-area: time;
+    text-align: left;
+  }
+
+  .line__text {
+    grid-area: text;
+  }
+
+  .line__actions {
+    grid-area: actions;
+    justify-self: end;
   }
 }
 
@@ -246,18 +285,23 @@ select {
 input[type='range'] {
   accent-color: var(--action-primary);
   width: 100%;
+  height: 24px;
 }
 
 input[type='checkbox'] {
   accent-color: var(--action-primary);
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 
+/* The label is the target, not the 18px box inside it. */
 .checkbox {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 32px;
+  padding-right: var(--space-2);
   font-size: var(--text-sm);
   cursor: pointer;
 }
@@ -340,8 +384,13 @@ input[type='checkbox'] {
   white-space: nowrap;
 }
 
+/*
+ * No `flex: 1` here. `.transport` is a flex *column*, so flex-basis: 0 would
+ * collapse the slider's height rather than grow its width — it is already
+ * full-width as a stretched column child.
+ */
 .transport__scrub {
-  flex: 1;
+  display: block;
 }
 
 /* ---------- Lyric table ---------- */
@@ -448,6 +497,13 @@ input[type='checkbox'] {
 .line:hover .line__actions,
 .line:focus-within .line__actions {
   opacity: 1;
+}
+
+/* Without a hover state there is no way to reveal these, so don't hide them. */
+@media (hover: none) {
+  .line__actions {
+    opacity: 1;
+  }
 }
 
 .line__action {

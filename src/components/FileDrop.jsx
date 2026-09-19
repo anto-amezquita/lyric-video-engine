@@ -38,6 +38,7 @@ export function FileDrop({ label, accept, value, hint, onFile }) {
         ref={inputRef}
         type="file"
         accept={accept}
+        aria-label={`${label} file`}
         className="sr-only"
         tabIndex={-1}
         onChange={(event) => {
