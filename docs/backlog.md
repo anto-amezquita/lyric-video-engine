@@ -24,11 +24,30 @@ Ordered by what it costs if it goes wrong, read against `product-north-star.md`
 ("reliable enough that the export is never the reason a video is late") rather
 than by effort.
 
-### 1. Spike automatic line alignment
+### 1. Check an export by eye on a real song
 
-- **Source:** Decided 2026-09-19 while specifying end times. Manual syncing
-  has to be redone whenever a demo is recut beyond an intro shift, and the
-  time goes to syncing instead of music.
+- **Source:** The last unticked acceptance criterion in
+  `specs/2026-09-19-line-end-times-and-gaps.md`, now also covering the
+  background dither and the per-song colours shipped since.
+- **Why it matters:** Three changes landed that only the eye can judge, and
+  all of them are in the pipeline the product exists for. Export a song with
+  a real gap (a long intro, a break, an outro) and compare the `.mp4` against
+  the preview:
+  - gaps leave the frame empty and come back in sync, matching the preview;
+  - no banding in the dark background — the grain in `renderFrame.js` is at
+    2.5%, tuned against the default dark palette, so a light or saturated
+    background may need a different amount;
+  - the exported colours match the picked ones.
+
+  If it all holds, tick the box in the end-times spec.
+- **Status:** Ready — everything it tests is built and passing its automated
+  tests
+
+### 2. Spike automatic line alignment
+
+- **Source:** Decided 2026-09-19 while specifying end times. Syncing is manual
+  and per-line (`decisions/0004`), so a new demo means stamping the song
+  again, and the time goes to syncing instead of music.
 - **Why it matters:** This is the biggest time saving on the table, and the
   least certain. Run two approaches in the browser against a vocal separated
   with Ultimate Vocal Remover:
@@ -47,16 +66,16 @@ than by effort.
   worth one run too, as a baseline.
 - **Status:** Not started — waiting on separated vocals for 2–3 demos
 
-### 2. Separate vocals inside the tool
+### 3. Separate vocals inside the tool
 
-- **Source:** Follows from #1. Separation currently needs UVR as a separate
+- **Source:** Follows from #2. Separation currently needs UVR as a separate
   app for every recut, since Ableton Live Intro has no stem separation.
 - **Why it matters:** The goal is to drop in the mix and get a draft sync
   back. It costs a second model (roughly 80MB+) and slower processing, so it's
   only worth doing if the spike shows alignment is good enough.
-- **Status:** Blocked on #1
+- **Status:** Blocked on #2
 
-### 3. Evaluate WebCodecs for export
+### 4. Evaluate WebCodecs for export
 
 - **Source:** `decisions/0001`, alternatives considered.
 - **Why it matters:** Faster than realtime, drops the 32MB ffmpeg dependency,
@@ -66,7 +85,7 @@ than by effort.
   those change what the videos look like.
 - **Status:** Not started
 
-### 4. Deploy it somewhere
+### 5. Deploy it somewhere
 
 - **Source:** Surfaced while filling `docs/architecture.md` — the deployment
   section is the one that stayed empty.
@@ -74,6 +93,18 @@ than by effort.
   makes it easy to not bother. Any static host works; the only requirement is
   that it serves `.wasm` as `application/wasm`, or the conversion fallback
   fails to load on the browsers that need it.
+- **Status:** Not started
+
+### 6. Let a session be deleted from the list
+
+- **Source:** Deferred open question in
+  `specs/2026-09-22-recent-sessions-and-audio-persistence.md` §9.
+- **Why it matters:** Session history is deliberately uncapped and each
+  session carries its audio, so the strip only grows and so does the storage
+  behind it. Not urgent at a handful of songs; it gets worse every session.
+  Needs a delete control on each entry that clears both the `sessions` and
+  `sessionAudio` records, and a decision on whether it confirms first (the
+  one existing destructive action, clearing all timestamps, does).
 - **Status:** Not started
 
 ---
