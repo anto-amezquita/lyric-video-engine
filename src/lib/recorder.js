@@ -42,7 +42,13 @@ export function recordCanvas({ canvas, audioTrack, format, fps = 30, onStop }) {
 
   const recorder = new MediaRecorder(stream, {
     mimeType: format.mimeType,
-    videoBitsPerSecond: 8_000_000,
+    /*
+     * 10 Mbps at 1080x1920/30fps. The background carries a subtle dither
+     * (see renderFrame.js) to fix visible 8-bit banding on its dark
+     * gradient; too tight a bitrate would flatten that grain back into
+     * blocky patches, reintroducing the same artifact one layer downstream.
+     */
+    videoBitsPerSecond: 10_000_000,
     audioBitsPerSecond: 192_000,
   })
 

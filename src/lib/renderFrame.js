@@ -5,7 +5,20 @@
  * draw pass only moves a single eased scroll value. Emphasis (opacity, scale)
  * falls out of each line's distance from the focal point, so one eased number
  * animates the whole stack.
+ *
+ * Colours come from `style` — every one is picked per song. A canvas can't
+ * read CSS custom properties, so the maths that derives the gradient and the
+ * edge fades from the picked background lives in `src/lib/color.js`, where
+ * it can be tested.
  */
+import {
+  GRADIENT_BOTTOM,
+  GRADIENT_TOP,
+  backgroundStops,
+  shade,
+  shadeAlpha,
+  withAlpha,
+} from './color.js'
 
 export const VIDEO_WIDTH = 1080
 export const VIDEO_HEIGHT = 1920
@@ -65,8 +78,7 @@ export function computeLayout(lines, style) {
 
   let y = 0
   const blocks = lines.map((line) => {
-    const text = style.uppercase ? line.text.toUpperCase() : line.text
-    const rows = wrap(ctx, text, maxWidth)
+    const rows = wrap(ctx, line.text, maxWidth)
     const height = rows.length * rowHeight
     const block = { id: line.id, rows, top: y, height, center: y + height / 2 }
     y += height + blockGap
@@ -81,35 +93,101 @@ export function createAnimState() {
   return { scroll: null, lastFrame: null }
 }
 
-function paintBackground(ctx) {
-  const gradient = ctx.createLinearGradient(0, 0, 0, VIDEO_HEIGHT)
-  gradient.addColorStop(0, '#12100e')
-  gradient.addColorStop(0.5, '#191512')
-  gradient.addColorStop(1, '#0d0b09')
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT)
+/**
+ * A small tile of random per-pixel gray noise, tiled across the background
+ * at low opacity. The gradient below is dark, large, and low-contrast —
+ * exactly the conditions where 8-bit colour visibly bands into discrete
+ * steps instead of reading as smooth. A fixed grain dithers it away. Same
+ * canvas gets recorded on export (`decisions/0001`), so this fixes both the
+ * live preview and the exported file in one place.
+ */
+function createGrainPattern(ctx) {
+  const size = 64
+  const noise = document.createElement('canvas')
+  noise.width = size
+  noise.height = size
+  const noiseCtx = noise.getContext('2d')
+  const imageData = noiseCtx.createImageData(size, size)
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    const value = Math.floor(Math.random() * 255)
+    imageData.data[i] = value
+    imageData.data[i + 1] = value
+    imageData.data[i + 2] = value
+    imageData.data[i + 3] = 255
+  }
+  noiseCtx.putImageData(imageData, 0, 0)
+  return ctx.createPattern(noise, 'repeat')
 }
 
-function paintEdgeFades(ctx) {
+/*
+ * The background never changes per frame — same colours, same grain, every
+ * time — so it is painted once into an offscreen canvas and reused, rather
+ * than rebuilding the gradient and noise on every one of 30 frames a
+ * second. Cheaper, and it also means the dithering only has to be computed
+ * once per page load. Cached against the colour it was painted with, so
+ * picking a new background repaints it exactly once.
+ */
+let backgroundBitmap = null
+let backgroundKey = null
+
+function getBackgroundBitmap(backgroundColor) {
+  if (backgroundBitmap && backgroundKey === backgroundColor) return backgroundBitmap
+
+  const canvas = document.createElement('canvas')
+  canvas.width = VIDEO_WIDTH
+  canvas.height = VIDEO_HEIGHT
+  const ctx = canvas.getContext('2d')
+
+  const stops = backgroundStops(backgroundColor)
+  const gradient = ctx.createLinearGradient(0, 0, 0, VIDEO_HEIGHT)
+  gradient.addColorStop(0, stops.top)
+  gradient.addColorStop(0.5, stops.middle)
+  gradient.addColorStop(1, stops.bottom)
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT)
+
+  ctx.globalAlpha = 0.025
+  ctx.fillStyle = createGrainPattern(ctx)
+  ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT)
+  ctx.globalAlpha = 1
+
+  backgroundBitmap = canvas
+  backgroundKey = backgroundColor
+  return backgroundBitmap
+}
+
+function paintBackground(ctx, style) {
+  ctx.drawImage(getBackgroundBitmap(style.background ?? '#191512'), 0, 0)
+}
+
+/*
+ * The fades have to match the gradient they sit on, or the top and bottom of
+ * the frame reads as a band of the wrong colour — so both ends are derived
+ * from the same picked colour as the background stops.
+ */
+function paintEdgeFades(ctx, style) {
+  const background = style.background ?? '#191512'
+
   const top = ctx.createLinearGradient(0, 0, 0, EDGE_FADE)
-  top.addColorStop(0, 'rgba(18,16,14,1)')
-  top.addColorStop(1, 'rgba(18,16,14,0)')
+  top.addColorStop(0, shade(background, GRADIENT_TOP))
+  top.addColorStop(1, shadeAlpha(background, GRADIENT_TOP, 0))
   ctx.fillStyle = top
   ctx.fillRect(0, 0, VIDEO_WIDTH, EDGE_FADE)
 
   const bottom = ctx.createLinearGradient(0, VIDEO_HEIGHT, 0, VIDEO_HEIGHT - EDGE_FADE)
-  bottom.addColorStop(0, 'rgba(13,11,9,1)')
-  bottom.addColorStop(1, 'rgba(13,11,9,0)')
+  bottom.addColorStop(0, shade(background, GRADIENT_BOTTOM))
+  bottom.addColorStop(1, shadeAlpha(background, GRADIENT_BOTTOM, 0))
   ctx.fillStyle = bottom
   ctx.fillRect(0, VIDEO_HEIGHT - EDGE_FADE, VIDEO_WIDTH, EDGE_FADE)
 }
 
-function paintProgress(ctx, progress) {
+function paintProgress(ctx, progress, style) {
   const height = 6
   const y = VIDEO_HEIGHT - height
-  ctx.fillStyle = 'rgba(207,199,186,0.16)'
+  const foreground = style.text ?? '#faf8f5'
+  ctx.fillStyle = withAlpha(foreground, 0.16)
   ctx.fillRect(0, y, VIDEO_WIDTH, height)
-  ctx.fillStyle = '#2aa898'
+  ctx.fillStyle = foreground
   ctx.fillRect(0, y, VIDEO_WIDTH * Math.min(1, Math.max(0, progress)), height)
 }
 
@@ -120,12 +198,14 @@ function paintProgress(ctx, progress) {
  * stack — both come from `resolveFrame`. While the stack is fully faded out
  * the scroll snaps instead of easing, so after a gap the next line fades in
  * already in place.
+ *
+ * The active line needs no colour of its own: it is the one nearest the
+ * focal point, so full opacity and scale already single it out.
  */
 export function renderFrame({
   ctx,
   layout,
   style,
-  activeIndex,
   focusIndex = 0,
   opacity: stackOpacity = 1,
   progress,
@@ -133,7 +213,7 @@ export function renderFrame({
   now,
   animate = true,
 }) {
-  paintBackground(ctx)
+  paintBackground(ctx, style)
 
   const { blocks, size, rowHeight } = layout
   if (blocks.length) {
@@ -153,7 +233,7 @@ export function renderFrame({
     ctx.font = `600 ${size}px "${CANVAS_FONT}", system-ui, sans-serif`
     const x = centered ? VIDEO_WIDTH / 2 : PADDING_X
 
-    blocks.forEach((block, index) => {
+    blocks.forEach((block) => {
       if (stackOpacity === 0) return
       const y = block.center - anim.scroll + FOCAL_Y
       if (y < -block.height - 120 || y > VIDEO_HEIGHT + block.height + 120) return
@@ -166,8 +246,7 @@ export function renderFrame({
       ctx.globalAlpha = opacity * stackOpacity
       ctx.translate(x, y)
       ctx.scale(scale, scale)
-      ctx.fillStyle =
-        style.accentActive && index === activeIndex && emphasis > 0.7 ? '#2aa898' : '#faf8f5'
+      ctx.fillStyle = style.text ?? '#faf8f5'
 
       const firstRowY = -((block.rows.length - 1) * rowHeight) / 2
       block.rows.forEach((row, rowIndex) => {
@@ -178,6 +257,6 @@ export function renderFrame({
   }
 
   ctx.globalAlpha = 1
-  paintEdgeFades(ctx)
-  if (style.showProgress) paintProgress(ctx, progress)
+  paintEdgeFades(ctx, style)
+  if (style.showProgress) paintProgress(ctx, progress, style)
 }

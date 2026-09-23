@@ -6,11 +6,22 @@ export function createLineId() {
   return `l${Date.now().toString(36)}${counter.toString(36)}`
 }
 
+/** A trimmed line wrapped entirely in [...] — metadata, never a lyric. */
+const BRACKET_LINE = /^\[(.*)\]$/
+
+/** Bracket keywords that become a stampable "♪" cue instead of being dropped. */
+const NOTE_KEYWORDS = new Set(['instrumental', 'intro', 'outro'])
+
 /**
  * Raw .txt -> line-level blocks.
  *
- * Blank lines are stanza separators, not lyrics, so they are dropped. Every
- * surviving line becomes one displayed, timestamped block.
+ * Blank lines are stanza separators, not lyrics, so they are dropped. A line
+ * wrapped entirely in [...] is metadata — title, section label, credits —
+ * and is dropped too, except a NOTE_KEYWORDS match (case-insensitive, stray
+ * spacing ignored), which becomes a stampable "♪" cue instead of being shown
+ * as text: same start, end and fade as any lyric line, just without the
+ * words. A bracket that doesn't span the whole line is left alone as
+ * ordinary text.
  */
 export function tokenizeLyrics(raw) {
   return String(raw)
@@ -18,6 +29,11 @@ export function tokenizeLyrics(raw) {
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
+    .flatMap((line) => {
+      const bracket = line.match(BRACKET_LINE)
+      if (!bracket) return [line]
+      return NOTE_KEYWORDS.has(bracket[1].trim().toLowerCase()) ? ['♪'] : []
+    })
 }
 
 /**

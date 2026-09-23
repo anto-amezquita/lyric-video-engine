@@ -23,10 +23,10 @@ A local-first browser tool that turns a lyric `.txt` and a demo `.wav` into a
 
 ### Longer description
 
-Drop in the lyrics and the demo, tap through the song once, and export a
-vertical video ready for social. The sync work is stored separately from the
-lyric text, so correcting a typo or receiving a recut demo costs one edit rather
-than a second pass.
+Drop in the lyrics and the demo, tap through the song once, then tune any line
+by clicking it and listening. The lyric text comes from the `.txt` and the
+timing lives beside it, so correcting a typo costs a re-import rather than a
+second pass.
 
 ---
 
@@ -35,9 +35,9 @@ than a second pass.
 ### The problem we solve
 
 Syncing lyrics to a demo is quick the first time and tedious every time after.
-Demos get recut — a bar of intro silence added, a verse trimmed — and in most
-tools the timing is welded to the text, so a typo fix or a new cut means
-starting over.
+In most tools the timing is welded to the text, so a typo fix means starting
+over — and getting one line to land exactly right means scrubbing a timeline
+for the same half-second, over and over.
 
 ### Who experiences it
 
@@ -46,8 +46,8 @@ the lyrics do. In this project's case, that is one person: the author.
 
 ### Why it matters
 
-The cost is not the first sync pass. It is the fifth one, on the same song,
-because the demo moved by a second and a half.
+The cost is not the first sync pass. It is the tenth time hunting for the same
+moment in the track to check whether one line lands where it should.
 
 ---
 
@@ -69,8 +69,8 @@ first-run experience have to be reopened with it.
 ### Users are trying to
 
 - Sync a full song in one playthrough rather than line by line.
+- Tune any individual line until it lands exactly right.
 - Change the lyric text without losing the timing.
-- Absorb a recut demo without re-syncing.
 - Get a vertical `.mp4` that uploads without a second tool.
 
 ### Users should feel
@@ -96,8 +96,8 @@ have to be edited one by one. Dedicated lyric-video services want an upload and 
 subscription, and unreleased demos are exactly the material you do not want to
 upload.
 
-This does one job, keeps the audio on the machine, and treats a recut demo as a
-single number rather than a redo.
+This does one job, keeps the audio on the machine, and makes tuning a single
+line a matter of clicking it and listening.
 
 ---
 
@@ -113,10 +113,12 @@ must not touch words. Every feature is checked against this before it is built.
 The sync pass runs at the speed of the song. Anything that makes the user stop,
 switch to the mouse, or listen twice is working against the product.
 
-#### 3. Prefer a read-time transform over a destructive edit
+#### 3. Precision per line, not per song
 
-The global offset shifts playback without rewriting the lines, and only commits
-when asked. Reach for that shape again before reaching for a bulk edit.
+A whole-song shift cannot fix the thing that actually goes wrong — one line
+landing slightly early. Timestamps are absolute and tuned one at a time, and
+the job of the interface is to make hearing that one moment cheap
+(`decisions/0004`).
 
 #### 4. What you previewed is what you get
 
@@ -162,7 +164,7 @@ changes, this section is the first thing to rewrite.
 ### Product goals
 
 - A four-minute song syncs in one playthrough.
-- A recut demo is absorbed with one number.
+- Any single line can be tuned to the frame without re-syncing the rest.
 - Export produces a file that uploads without conversion.
 
 ### Success signals
@@ -177,10 +179,16 @@ changes, this section is the first thing to rewrite.
 
 ### In scope
 
-- Line-level sync, editing, and global time-shifting.
+- Line-level sync, per-line fine-tuning, and the timestamp editing that serves
+  it.
 - 9:16 canvas rendering with the handful of look controls that change per song.
 - In-browser export to `.mp4`.
-- Keeping a project across a reload.
+- Keeping a project across a reload, and saving/loading it as a portable
+  `.json` file across sessions and machines
+  (`specs/2026-09-22-project-save-load.md`).
+- Audio persisting across a reload, and a history of every song synced,
+  reopenable from a list — all local to the browser
+  (`specs/2026-09-22-recent-sessions-and-audio-persistence.md`).
 
 ### Out of scope
 
@@ -196,7 +204,7 @@ changes, this section is the first thing to rewrite.
 
 When making product decisions, ask:
 
-- Does this survive a demo being recut?
+- Does it make tuning one line cheaper, or only the whole song?
 - Can it be done without leaving the keyboard mid-pass?
 - Does it keep timing and text separate?
 - Does anything leave the browser?

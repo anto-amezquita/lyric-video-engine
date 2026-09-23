@@ -1,38 +1,46 @@
-import { buildLines, createLineId } from '../lib/tokenize.js'
+import { buildLines } from '../lib/tokenize.js'
 import { clamp } from '../lib/time.js'
 
 export const STORAGE_KEY = 'lyric-video-engine/project/v1'
 
+/** Version of the portable project-file contract (Save project / Load project). */
+export const PROJECT_FILE_VERSION = 1
+
 export const DEFAULT_STYLE = {
   fontScale: 1,
   align: 'center',
-  uppercase: false,
-  accentActive: false,
   showProgress: true,
+  /*
+   * Canvas colours, per song. These are the values the fixed palette used
+   * before they were editable, so an existing project looks identical after
+   * the change (missing keys fall back here on load). The lyric colour also
+   * drives the active-line accent and the progress bar — one foreground
+   * colour, not three to keep in agreement.
+   */
+  background: '#191512',
+  text: '#faf8f5',
 }
 
 export const initialProject = {
   lines: [],
-  /**
-   * Global time-shift, in milliseconds, applied on read — never written into
-   * `line.time`. A new audio cut with more or less intro silence is one number
-   * away, and the original sync pass stays intact underneath.
-   */
-  offsetMs: 0,
   cursor: 0,
   lyricsName: null,
   style: DEFAULT_STYLE,
 }
 
-/** Effective playback time of a line: stored time plus the global offset. */
-export function effectiveTime(line, offsetMs) {
-  return line.time == null ? null : line.time + offsetMs / 1000
+/**
+ * Playback time of a line. Timestamps are absolute: what is stored is what
+ * plays, so fine-tuning a line means changing that one line's number and
+ * nothing else.
+ */
+export function effectiveTime(line) {
+  return line.time ?? null
 }
 
-/** Effective end of a line, or null when it has none or it isn't after the start. */
-export function effectiveEnd(line, offsetMs) {
+/** End of a line, or null when it has none or it isn't after the start. */
+export function effectiveEnd(line) {
   if (line.end == null || line.time == null || line.end <= line.time) return null
-  return line.end + offsetMs / 1000
+  return line.end
 }
 
 /** How long the lyric stack takes to fade out at a line's end, and back in after a gap. */
@@ -42,19 +50,19 @@ export const FADE_SECONDS = 0.25
 export const MIN_GAP_SECONDS = 0.6
 
 /**
- * Timed lines sorted by effective time, so the active-line lookup survives an
+ * Timed lines sorted by time, so the active-line lookup survives an
  * out-of-order tap pass. Untimed lines are laid out but can never be active.
  *
  * Each cue also gets `until`: the moment the line leaves the screen. That is
  * its end, unless the next line starts first or the gap would be too short to
  * read as one — then the line simply hands over to the next.
  */
-export function buildCueList(lines, offsetMs) {
+export function buildCueList(lines) {
   const cues = lines
     .map((line, index) => ({
       index,
-      time: effectiveTime(line, offsetMs),
-      end: effectiveEnd(line, offsetMs),
+      time: effectiveTime(line),
+      end: effectiveEnd(line),
     }))
     .filter((cue) => cue.time != null && cue.time >= 0)
     .toSorted((a, b) => a.time - b.time)
@@ -137,13 +145,9 @@ export function projectReducer(state, action) {
       return { ...state, lines, lyricsName: action.name ?? state.lyricsName, cursor: 0 }
     }
 
-    /* Text edits touch `text` only. Index, id and time are untouched. */
-    case 'set-text': {
-      const lines = state.lines.map((line) =>
-        line.id === action.id ? { ...line, text: action.text } : line,
-      )
-      return { ...state, lines }
-    }
+    /* A loaded project file replaces everything in one step — no merge. */
+    case 'load-project':
+      return action.project
 
     case 'set-time': {
       const lines = state.lines.map((line) =>
@@ -175,7 +179,7 @@ export function projectReducer(state, action) {
       if (!state.lines.length) return state
       const index = clamp(state.cursor, 0, state.lines.length - 1)
       const lines = state.lines.map((line, i) =>
-        i === index ? { ...line, time: Math.max(0, action.time - state.offsetMs / 1000) } : line,
+        i === index ? { ...line, time: Math.max(0, action.time) } : line,
       )
       return { ...state, lines, cursor: Math.min(index + 1, lines.length - 1) }
     }
@@ -187,43 +191,11 @@ export function projectReducer(state, action) {
       }
     }
 
-    case 'set-offset': {
-      return { ...state, offsetMs: Math.round(action.offsetMs) }
-    }
-
-    /*
-     * Fold the offset into the stored timestamps and reset it to zero. Same
-     * resulting video; useful once a shift is settled and you want a clean base
-     * before the next round of nudging.
-     */
-    case 'bake-offset': {
-      if (!state.offsetMs) return state
-      const shift = state.offsetMs / 1000
-      const bake = (value) => (value == null ? null : Math.max(0, value + shift))
-      const lines = state.lines.map((line) => ({
-        ...line,
-        time: bake(line.time),
-        end: bake(line.end),
-      }))
-      return { ...state, lines, offsetMs: 0 }
-    }
-
     case 'set-cursor':
       return withCursor(state, action.cursor)
 
     case 'move-cursor':
       return withCursor(state, state.cursor + action.delta)
-
-    case 'insert-line': {
-      const lines = [...state.lines]
-      lines.splice(action.index + 1, 0, { id: createLineId(), text: '', time: null, end: null })
-      return { ...state, lines, cursor: action.index + 1 }
-    }
-
-    case 'delete-line': {
-      const lines = state.lines.filter((line) => line.id !== action.id)
-      return withCursor({ ...state, lines }, state.cursor)
-    }
 
     case 'set-style':
       return { ...state, style: { ...state.style, ...action.style } }
@@ -240,20 +212,45 @@ export function projectReducer(state, action) {
  * Local-first persistence: the sync pass survives a refresh. The audio file
  * itself can't be stored, so it is re-picked on load.
  */
+
+/**
+ * Normalize a parsed payload (from localStorage, a loaded project file, or a
+ * session record) into a full project shape, or null if it isn't one.
+ */
+function projectFromPayload(saved) {
+  if (!saved || !Array.isArray(saved.lines)) return null
+
+  /*
+   * Timestamps used to be read through a global offset. That was removed in
+   * favour of absolute times, so any payload still carrying a non-zero
+   * `offsetMs` gets it folded into its own timestamps once, here — the same
+   * arithmetic the old "bake offset" action did. Without this, a project
+   * saved with an offset would silently play shifted.
+   */
+  const shift = (saved.offsetMs ?? 0) / 1000
+  const fold = (value) => (value == null ? null : Math.max(0, value + shift))
+
+  const { offsetMs: _legacyOffset, ...rest } = saved
+
+  return {
+    ...initialProject,
+    ...rest,
+    lines: saved.lines.map((line) => ({
+      ...line,
+      time: shift ? fold(line.time) : line.time,
+      /* Projects saved before end times existed load with every end unset. */
+      end: shift ? fold(line.end ?? null) : (line.end ?? null),
+    })),
+    style: { ...DEFAULT_STYLE, ...saved.style },
+    cursor: 0,
+  }
+}
+
 export function loadStoredProject() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return initialProject
-    const saved = JSON.parse(raw)
-    if (!Array.isArray(saved.lines)) return initialProject
-    return {
-      ...initialProject,
-      ...saved,
-      /* Projects saved before end times existed load with every end unset. */
-      lines: saved.lines.map((line) => ({ ...line, end: line.end ?? null })),
-      style: { ...DEFAULT_STYLE, ...saved.style },
-      cursor: 0,
-    }
+    return projectFromPayload(JSON.parse(raw)) ?? initialProject
   } catch {
     return initialProject
   }
@@ -261,9 +258,54 @@ export function loadStoredProject() {
 
 export function storeProject(state) {
   try {
-    const { lines, offsetMs, lyricsName, style } = state
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ lines, offsetMs, lyricsName, style }))
+    const { lines, lyricsName, style } = state
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ lines, lyricsName, style }))
   } catch {
     /* Private mode or a full quota — persistence is a convenience, not a feature. */
+  }
+}
+
+/**
+ * Serialize the project to a portable, human-readable `.json` string —
+ * everything `storeProject` saves, plus a version field and the audio
+ * file's name for reference. `audioName` is informational only: it is never
+ * read back on load, since audio is always re-picked separately.
+ */
+export function serializeProjectFile(state, audioName) {
+  const { lines, lyricsName, style } = state
+  return JSON.stringify(
+    {
+      version: PROJECT_FILE_VERSION,
+      lines,
+      lyricsName,
+      style,
+      audioName: audioName ?? null,
+    },
+    null,
+    2,
+  )
+}
+
+/**
+ * Build a full project from a saved session record (`src/lib/sessions.js`),
+ * through the same normalization every other load path uses. Falls back to
+ * an empty project if the record is somehow malformed.
+ */
+export function projectFromSession(session) {
+  return projectFromPayload(session) ?? initialProject
+}
+
+/**
+ * Parse a loaded project file's text back into a full project, or null if
+ * it isn't valid JSON, has no `lines` array, or is a version this build
+ * doesn't understand.
+ */
+export function parseProjectFile(raw) {
+  try {
+    const saved = JSON.parse(raw)
+    if (saved?.version !== PROJECT_FILE_VERSION) return null
+    return projectFromPayload(saved)
+  } catch {
+    return null
   }
 }

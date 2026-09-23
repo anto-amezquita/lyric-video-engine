@@ -1,5 +1,11 @@
 # Lyric Video Engine — MVP
 
+> **Partly superseded by `decisions/0004`.** The global offset, inline text
+> editing, line insert/delete and the uppercase toggle described below were
+> removed. Timestamps are now absolute and the lyric table is read-only;
+> lyrics are corrected in the `.txt` and re-imported. The sections affected
+> are marked inline.
+
 ## 1. Overview
 
 ### Summary
@@ -34,7 +40,8 @@ a single click and produces a file that uploads without conversion.
 - Tokenise a raw `.txt` into line-level blocks with no formatting rules to learn.
 - Sync a whole song in one playthrough, from the keyboard.
 - Keep timestamps intact when the lyric text changes.
-- Absorb a recut demo with a single global time-shift.
+- ~~Absorb a recut demo with a single global time-shift.~~ Removed —
+  `decisions/0004`.
 - Export H.264/AAC `.mp4` at 1080×1920 from the browser.
 
 ### Non-goals
@@ -105,17 +112,23 @@ stamp anything.
 
 ## 4. Functional requirements
 
-1. Accept a `.txt` file; split on newlines, trim, drop blank lines.
+1. Accept a `.txt` file; split on newlines, trim, drop blank lines. A line
+   wrapped entirely in `[...]` is metadata (title, section label, credits)
+   and is dropped too, except `[Instrumental]`, which becomes a stampable
+   `♪` cue (`decisions/0002`).
 2. Accept a `.wav` (and other browser-decodable audio) as the master clock.
-3. Store lines as `{ id, text, time }`; `time` is seconds or `null`.
-4. Text edits address a line by `id` and change `text` only.
+3. Store lines as `{ id, text, time, end }`; `time` and `end` are absolute
+   seconds or `null`.
+4. ~~Text edits address a line by `id` and change `text` only.~~ Removed — the
+   table is read-only (`decisions/0004`).
 5. Re-import matches by position and carries `time` and `id` over.
-6. A global offset in milliseconds applies on read; "Bake in" folds it into the
-   stored timestamps and resets it to zero.
-7. Space stamps the cursor line at `audio.currentTime` minus the current offset,
-   then advances the cursor. Tapping an already-stamped line overwrites it.
+6. ~~A global offset in milliseconds applies on read; "Bake in" folds it into
+   the stored timestamps and resets it to zero.~~ Removed — `decisions/0004`.
+7. Space stamps the cursor line at `audio.currentTime`, then advances the
+   cursor. Tapping an already-stamped line overwrites it.
 8. Backspace clears the cursor line's timestamp; arrow keys move the cursor and
-   seek the audio.
+   seek the audio. Clicking a line, or pressing Enter on the cursor line, seeks
+   the playhead to that line's start (`decisions/0004`).
 9. Timestamps are editable directly as `m:ss.cc` or plain seconds.
 10. Canvas renders 1080×1920, active line at full opacity and scale, neighbours
     dimming with distance.
@@ -141,18 +154,18 @@ stamp anything.
 
 ### Data entities
 
-**Line** — `{ id: string, text: string, time: number | null }`
+**Line** — `{ id: string, text: string, time: number | null, end: number | null }`
 
-**Project** — `{ lines: Line[], offsetMs: number, cursor: number, lyricsName: string | null, style: Style }`
+**Project** — `{ lines: Line[], cursor: number, lyricsName: string | null, style: Style }`
 
-**Style** — `{ fontScale, align, uppercase, accentActive, showProgress }`
+**Style** — `{ fontScale, align, showProgress, background, text }`
 
 ### State changes
 
 All writes go through `projectReducer`. Timestamps are only ever written by
-`set-time`, `stamp-cursor`, `clear-times` and `bake-offset` — never by a text
-action. That separation is what the decoupling requirement reduces to, and it is
-covered by tests.
+`set-time`, `set-end`, `stamp-cursor`, `clear-timing` and `clear-times`. Since
+`decisions/0004` there is no text action at all, so the decoupling the MVP
+promised is structural rather than enforced.
 
 ### Persistence
 
@@ -191,9 +204,8 @@ None. There is no backend.
 |---|---|
 | `FileDrop` | Click-or-drop intake for one file type; its label is the empty state. |
 | `Transport` | Play/pause, seek, scrub. Owns its own readout state at ~10Hz. |
-| `LyricLines` | The editable line table. Rows are memoised. |
-| `OffsetPanel` | Global time-shift: slider, numeric field, nudges, reset, bake. |
-| `LookPanel` | Text size, alignment, uppercase, accent, progress bar. |
+| `LyricLines` | The line table: read-only text, editable start and end. Rows are memoised; clicking one seeks to it. |
+| `LookPanel` | Text size, alignment, progress bar, and the two canvas colours (background, lyrics) with a contrast warning. |
 | `CanvasPreview` | The 9:16 canvas — also the surface the exporter records. |
 | `ExportPanel` | Export trigger, progress, and what the pipeline is doing. |
 
@@ -221,7 +233,9 @@ None. There is no backend.
 
 ### Assumptions
 
-- Lyric files are one line per lyric line, with blank lines between stanzas.
+- Lyric files are one line per lyric line, with blank lines between stanzas,
+  and any full-line `[...]` treated as metadata rather than a lyric
+  (`decisions/0002`).
 - Line order does not change between demo versions. Reordered lines lose their
   carry-over, since matching is positional.
 
@@ -238,10 +252,12 @@ None. There is no backend.
 
 - [x] `.txt` tokenises to line-level blocks, blanks dropped.
 - [x] `.wav` loads and drives playback.
-- [x] Text edits preserve line index, id and timestamp.
+- [x] ~~Text edits preserve line index, id and timestamp.~~ Superseded —
+      `decisions/0004`.
 - [x] Re-import carries timestamps over by position.
-- [x] Global offset shifts playback without rewriting stored timestamps.
-- [x] Bake folds the offset in exactly once and clamps at zero.
+- [x] ~~Global offset shifts playback without rewriting stored timestamps.~~
+      ~~Bake folds the offset in exactly once and clamps at zero.~~
+      Superseded — `decisions/0004`.
 - [x] Space stamps the cursor line and advances; re-tapping overwrites.
 - [x] Shortcuts do not fire while a text field has focus.
 - [x] Canvas renders 1080×1920 with the active line emphasised.

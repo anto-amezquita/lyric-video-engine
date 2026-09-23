@@ -73,8 +73,14 @@ export async function convertToMp4(blob, { route, onProgress, onLog } = {}) {
             'libx264',
             '-preset',
             'veryfast',
+            /*
+             * 18, not 22: the canvas now carries a subtle background dither
+             * (renderFrame.js) to fix 8-bit banding, and a looser CRF here
+             * would quantize that grain right back into blocky patches on
+             * this route's full re-encode.
+             */
             '-crf',
-            '22',
+            '18',
             '-pix_fmt',
             'yuv420p',
             '-c:a',

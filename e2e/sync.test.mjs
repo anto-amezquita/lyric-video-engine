@@ -32,7 +32,8 @@ async function blur(page) {
 }
 
 const stamps = (page) => page.locator('.line__time').evaluateAll((els) => els.map((e) => e.value))
-const texts = (page) => page.locator('.line__text').evaluateAll((els) => els.map((e) => e.value))
+const texts = (page) =>
+  page.locator('.line__text').evaluateAll((els) => els.map((e) => e.textContent))
 
 describe('keyboard sync pass', () => {
   test('Space stamps the cursor line and advances through the song', async (t) => {
@@ -80,40 +81,35 @@ describe('keyboard sync pass', () => {
     await context.close()
   })
 
-  test('the global offset is subtracted, so a stamp plays back where it was tapped', async (t) => {
+  test('clicking a line moves the playhead to its start, for fine-tuning by ear', async (t) => {
     if (!browser) return t.skip('Chrome is not installed')
     const { context, page } = await openApp(browser, preview.url, fixtures)
 
-    await page.locator('input[aria-label="Offset in milliseconds"]').fill('1000')
+    await stampLines(page, ['0:00.50', '0:02.50'])
     await blur(page)
-    await page.evaluate(() => {
-      document.querySelector('audio').currentTime = 3
-    })
-    await page.waitForTimeout(200)
-    await page.keyboard.press('Space')
-    await page.waitForTimeout(200)
 
-    const [first] = await stamps(page)
-    assert.equal(first, '0:02.00', 'stored value should be the playhead minus the offset')
+    await page.locator('.line__text').nth(1).click()
+    await page.waitForTimeout(250)
+
+    const at = await page.evaluate(() => document.querySelector('audio').currentTime)
+    assert.ok(Math.abs(at - 2.5) < 0.2, `playhead should sit at the line's start, got ${at}`)
     await context.close()
   })
 
-  test('typing a lyric with spaces never stamps anything', async (t) => {
+  test('typing a timestamp never stamps anything', async (t) => {
     if (!browser) return t.skip('Chrome is not installed')
     const { context, page } = await openApp(browser, preview.url, fixtures)
 
-    const field = page.locator('.line__text').nth(0)
+    const field = page.locator('.line__end').nth(0)
     await field.click()
-    await field.fill('')
-    await page.keyboard.type('Hold the line tight')
+    await page.keyboard.type('0:03.00')
     await page.waitForTimeout(200)
 
     assert.deepEqual(
       (await stamps(page)).filter(Boolean),
       [],
-      'no timestamp should have been recorded while typing',
+      'no start should have been recorded while typing in a field',
     )
-    assert.equal((await texts(page))[0], 'Hold the line tight')
     await context.close()
   })
 
@@ -143,7 +139,7 @@ describe('keyboard sync pass', () => {
     await context.close()
   })
 
-  test('a text edit leaves the timestamp and the line order alone', async (t) => {
+  test('editing an end leaves the start and the line order alone', async (t) => {
     if (!browser) return t.skip('Chrome is not installed')
     const { context, page } = await openApp(browser, preview.url, fixtures)
     await blur(page)
@@ -155,13 +151,15 @@ describe('keyboard sync pass', () => {
     await page.keyboard.press('Space')
     await page.waitForTimeout(150)
     const stamped = (await stamps(page))[0]
+    const lyricsBefore = await texts(page)
 
-    await page.locator('.line__text').nth(0).fill('Hold the lines')
+    const end = page.locator('.line__end').nth(0)
+    await end.fill('0:04.00')
+    await end.press('Enter')
     await page.waitForTimeout(250)
 
-    assert.equal((await stamps(page))[0], stamped, 'the timestamp must not move')
-    assert.equal((await texts(page))[0], 'Hold the lines')
-    assert.equal((await texts(page))[1], 'I was wrong', 'the rest of the song must not reorder')
+    assert.equal((await stamps(page))[0], stamped, 'the start must not move')
+    assert.deepEqual(await texts(page), lyricsBefore, 'the song must not reorder')
     await context.close()
   })
 })

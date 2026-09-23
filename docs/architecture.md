@@ -27,7 +27,9 @@ The goal is to help contributors and AI agents make technical decisions that fit
 ### Backend
 
 - runtime / framework: none
-- database: none — project state is held in `localStorage`
+- database: none server-side. Client-side, the current project is held in
+  `localStorage`; session history (every song synced, plus its audio) is
+  held in IndexedDB (`decisions/0003`)
 - auth: none
 - file storage: none — audio and lyrics stay in the browser
 - background jobs: none
@@ -102,7 +104,7 @@ Client-side only. The app is a static bundle with no server at runtime.
 
 ### State management
 
-All project data — lines, timestamps, offset, style — lives in one reducer in
+All project data — lines, timestamps, style — lives in one reducer in
 `src/state/project.js` and is persisted to `localStorage` on change.
 
 Playback position is deliberately *not* React state. `audio.currentTime` is read
@@ -136,7 +138,8 @@ The scale names mirror the personal brand token set, so swapping in canonical
 values is a one-file change. This tool uses the bold expression — teal as
 accent — because the UI is a dark editing surface.
 
-Layout is a two-pane grid that collapses to one column below 900px.
+Layout is a two-pane grid with a pinned transport bar beneath it; the panes
+collapse to one column below 900px while the bar stays put.
 
 ### Accessibility
 
@@ -160,24 +163,37 @@ needs an ADR that addresses that promise first.
 
 ### Core entities
 
-- **Line** — `{ id, text, time }`. `time` is seconds from the start of the
-  audio, or `null` when the line has not been stamped yet.
-- **Project** — `{ lines, offsetMs, cursor, lyricsName, style }`.
-- **Style** — `{ fontScale, align, uppercase, accentActive, showProgress }`.
+- **Line** — `{ id, text, time, end }`. `time` and `end` are absolute seconds
+  from the start of the audio; `time` is `null` when the line has not been
+  stamped yet, and `end` is `null` when the line holds until the next one.
+  The text is read-only in the app — it comes from the `.txt`.
+- **Project** — `{ lines, cursor, lyricsName, style }`.
+- **Style** — `{ fontScale, align, showProgress, background, text }`.
+  The last two are the canvas colours, picked per song: the background is the
+  gradient's middle stop, with both ends and the edge fades derived from it,
+  and the lyric colour also paints the progress bar
+  (`src/lib/color.js`).
+- **Session** (`src/lib/sessions.js`, IndexedDB) — the same fields as
+  Project (minus `cursor`) plus `audioName`, `updatedAt`, keyed by
+  `lyricsName`. One per song ever synced. See `decisions/0003`.
+- **Session audio** (IndexedDB, same key as its Session) — `{ id, blob,
+  type, name }`, the audio bytes a session's `File` is rebuilt from.
 
 ### Conventions
 
 - ids: opaque strings, generated locally, never displayed and never persisted
   anywhere but `localStorage`.
-- timestamps: seconds as a number for stored values; milliseconds as an integer
-  for the global offset, because that is the unit people think in when nudging
-  against a recut.
+- timestamps: seconds as a number, absolute. What is stored is what plays —
+  there is no read-time transform, so a line is tuned by changing its own
+  value and nothing else.
 - `null` means "not stamped yet" and is distinct from `0`, which is a real
   timestamp at the top of the track.
 - deletes are immediate; there is no soft delete and no undo. The one
   destructive bulk action is confirmed.
 - migrations: the storage key carries the shape version. A breaking change takes
-  a new key rather than a migration.
+  a new key rather than a migration — with one exception, the removed global
+  offset, which is folded into a payload's own timestamps on load so existing
+  work keeps playing where it played (`projectFromPayload`).
 
 ### Data ownership
 
@@ -189,10 +205,20 @@ module may keep a copy.
 
 ## 7. API conventions
 
-No APIs. The only versioned contract is the `localStorage` key
-`lyric-video-engine/project/v1`; a breaking change to the project shape needs a
-new key, and `loadStoredProject` must fall back to an empty project rather than
-throw.
+No APIs. Three versioned local-persistence contracts exist:
+
+- `localStorage` key `lyric-video-engine/project/v1` — autosaved on every
+  change; a breaking change to the project shape needs a new key, and
+  `loadStoredProject` must fall back to an empty project rather than throw.
+- A portable project `.json` file, written and read only on explicit Save
+  project / Load project — carries its own `version` field
+  (`PROJECT_FILE_VERSION` in `src/state/project.js`). A file whose version
+  doesn't match the running app's is rejected outright rather than migrated;
+  see `specs/2026-09-22-project-save-load.md`.
+- IndexedDB (`src/lib/sessions.js`, `decisions/0003`) — one `sessions` record
+  and one `sessionAudio` record per song ever synced, keyed by lyrics file
+  name. No version field; every function degrades to a no-op/empty result on
+  failure rather than throwing, same posture as `localStorage` access.
 
 ---
 
@@ -202,8 +228,13 @@ throw.
 
 `src/styles/tokens.css`, as CSS custom properties. Components read the semantic
 layer (`--surface`, `--action-primary`); only the semantic layer reads the raw
-scale. Canvas colours are the one exception — they are literal hex values in
-`src/lib/renderFrame.js`, because a canvas cannot read custom properties.
+scale. Canvas colours are the one exception — a canvas cannot read custom
+properties, so they live in the project's `style` and are picked per song.
+There are two: a background and a foreground. The foreground paints both the
+lyrics and the progress bar, and the background's gradient stops and edge
+fades are derived from it. That maths, plus the contrast check the Look panel
+warns with, is in `src/lib/color.js`, kept separate from the DOM-only
+`renderFrame.js` so it can be tested.
 
 ### Components
 
@@ -267,10 +298,10 @@ not recoverable from the code.
 ### Unit tests
 
 The reducer and the pure helpers, in `tests/`. Specifically the decoupling
-guarantees: a text edit must not move an index or a timestamp, a re-import must
-carry timestamps over by position, and baking the offset must fold it in exactly
-once. These are the rules the product is built on, so they are the rules that
-get pinned.
+guarantees: a re-import must carry timestamps over by position, a tap must
+never touch an end, and a payload saved with the old global offset must fold
+it in exactly once. These are the rules the product is built on, so they are
+the rules that get pinned.
 
 ### Integration tests
 
@@ -372,9 +403,10 @@ Redeploy the previous build. There is no state on a server to roll back.
 
 - One reducer for project data; refs for anything read per frame.
 - Timestamps decoupled from text — always address a line by `id`, never rewrite
-  a line object wholesale from a text action.
-- Read-time transforms (the global offset) over destructive edits, with an
-  explicit "bake" when the user wants to commit.
+  a line object wholesale from another action.
+- Absolute timestamps, edited one line at a time. A read-time transform over
+  the whole song was tried (the global offset) and removed: precision per line
+  is what this product is for.
 - Detect a browser capability, then explain the consequence in the UI.
 - Native elements before custom ones.
 
@@ -383,7 +415,6 @@ Redeploy the previous build. There is no state on a server to roll back.
 ## 16. Patterns to avoid
 
 - Storing a derived value that could be computed from `audio.currentTime`.
-- Rewriting stored timestamps when a read-time offset would do.
 - A UI component that reaches for the audio element directly instead of going
   through the engine.
 - Adding a component library. The UI is plain semantic HTML on purpose.

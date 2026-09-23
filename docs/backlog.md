@@ -76,16 +76,6 @@ than by effort.
   fails to load on the browsers that need it.
 - **Status:** Not started
 
-### 5. Decide whether long gaps need a marker
-
-- **Source:** Deferred in `specs/2026-09-19-line-end-times-and-gaps.md`.
-- **Why it matters:** A long intro or solo (roughly 5–8s+) rendered as an
-  empty frame may look like a frozen or broken video, especially on a muted
-  feed. A note icon or dots on long gaps only, as an option, is the likely
-  answer. End times and empty-frame gaps are built, so this can be judged
-  on real renders now.
-- **Status:** Ready — export a real song with a long intro or solo and watch it
-
 ---
 
 ## 3. What doesn't belong here

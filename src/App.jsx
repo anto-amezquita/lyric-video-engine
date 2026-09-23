@@ -4,12 +4,27 @@ import { ExportPanel } from './components/ExportPanel.jsx'
 import { FileDrop } from './components/FileDrop.jsx'
 import { LookPanel } from './components/LookPanel.jsx'
 import { LyricLines } from './components/LyricLines.jsx'
-import { OffsetPanel } from './components/OffsetPanel.jsx'
+import { RecentSessions } from './components/RecentSessions.jsx'
 import { Transport } from './components/Transport.jsx'
 import { useAudioEngine } from './hooks/useAudioEngine.js'
 import { useExport } from './hooks/useExport.js'
 import { useSyncShortcuts } from './hooks/useSyncShortcuts.js'
-import { loadStoredProject, projectReducer, storeProject } from './state/project.js'
+import { downloadBlob } from './lib/recorder.js'
+import {
+  listSessions,
+  loadSessionAudio,
+  saveSession,
+  saveSessionAudio,
+  sessionRecord,
+} from './lib/sessions.js'
+import {
+  loadStoredProject,
+  parseProjectFile,
+  projectFromSession,
+  projectReducer,
+  serializeProjectFile,
+  storeProject,
+} from './state/project.js'
 import './styles/global.css'
 
 function safeFilename(name) {
@@ -28,7 +43,7 @@ export default function App() {
   const canvasRef = useRef(null)
   const engine = useAudioEngine()
 
-  const { lines, offsetMs, cursor, lyricsName, style } = project
+  const { lines, cursor, lyricsName, style } = project
   const hasLyrics = lines.length > 0
   const hasAudio = Boolean(engine.audioFile)
   const ready = hasLyrics && hasAudio
@@ -63,6 +78,82 @@ export default function App() {
     [dispatch],
   )
 
+  const projectInputRef = useRef(null)
+  const [projectMessage, setProjectMessage] = useState('')
+
+  const saveProjectFile = useCallback(() => {
+    const json = serializeProjectFile(project, engine.audioFile?.name)
+    downloadBlob(
+      new Blob([json], { type: 'application/json' }),
+      `${safeFilename(project.lyricsName ?? engine.audioFile?.name)}.lve-project.json`,
+    )
+  }, [project, engine.audioFile])
+
+  const loadProjectFile = useCallback(
+    (file) => {
+      const reader = new FileReader()
+      reader.addEventListener('load', () => {
+        const parsed = parseProjectFile(String(reader.result))
+        if (!parsed) {
+          setProjectMessage(`"${file.name}" isn't a project file this version understands.`)
+          return
+        }
+        setProjectMessage('')
+        dispatch({ type: 'load-project', project: parsed })
+      })
+      reader.readAsText(file)
+    },
+    [dispatch],
+  )
+
+  /* ---------- Recent sessions: audio persistence across a reload ---------- */
+
+  const [sessions, setSessions] = useState([])
+  const refreshSessions = useCallback(() => {
+    listSessions().then(setSessions)
+  }, [])
+
+  useEffect(() => {
+    refreshSessions()
+  }, [refreshSessions])
+
+  /* Every project change with a song name saves that song's session — metadata only, no audio bytes. */
+  useEffect(() => {
+    if (!lyricsName) return
+    saveSession(
+      sessionRecord({ lyricsName, lines, style, audioName: engine.audioFile?.name }),
+    ).then(refreshSessions)
+  }, [lyricsName, lines, style, engine.audioFile, refreshSessions])
+
+  /* The audio file itself changed (a fresh pick, or a session restore) — save its bytes. */
+  useEffect(() => {
+    if (!lyricsName || !engine.audioFile) return
+    saveSessionAudio(lyricsName, engine.audioFile, engine.audioFile.name)
+  }, [lyricsName, engine.audioFile])
+
+  /* On mount only: the localStorage-restored project has a song but no audio — restore it. */
+  useEffect(() => {
+    if (!lyricsName || engine.audioFile) return
+    let cancelled = false
+    loadSessionAudio(lyricsName).then((file) => {
+      if (!cancelled && file) engine.setAudioFile(file)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openSession = useCallback(
+    (session) => {
+      dispatch({ type: 'load-project', project: projectFromSession(session) })
+      loadSessionAudio(session.id).then((file) => {
+        if (file) engine.setAudioFile(file)
+      })
+    },
+    [dispatch, engine],
+  )
+
   const stampLine = useCallback(
     (index) => {
       dispatch({ type: 'set-cursor', cursor: index })
@@ -89,6 +180,41 @@ export default function App() {
 
       <div className="app__panes">
         <main className="pane">
+          <section className="section">
+            <div className="section__head">
+              <h2 className="section__title">Project</h2>
+            </div>
+            <div className="btn-row">
+              <button type="button" className="btn btn--ghost" onClick={saveProjectFile}>
+                Save project
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => projectInputRef.current?.click()}
+              >
+                Load project
+              </button>
+              <input
+                ref={projectInputRef}
+                type="file"
+                accept=".json,application/json"
+                aria-label="Load project file"
+                className="sr-only"
+                tabIndex={-1}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) loadProjectFile(file)
+                  event.target.value = ''
+                }}
+              />
+            </div>
+            <p className="hint" role="status" data-tone={projectMessage ? 'error' : undefined}>
+              {projectMessage ||
+                'Saves lines, timestamps and look to a file you keep. Audio is re-picked separately.'}
+            </p>
+          </section>
+
           <section className="section">
             <div className="section__head">
               <h2 className="section__title">Source</h2>
@@ -124,12 +250,11 @@ export default function App() {
               </span>
             </div>
 
-            <Transport engine={engine} disabled={!hasAudio} />
-
             <p className="hint">
               Play, then tap <kbd>Space</kbd> on each line as it lands. The cursor advances on its
-              own, so one pass is usually enough. Tap again over a line to overwrite it. An end time
-              is optional: leave it empty and the line holds until the next one starts.
+              own, so one pass is usually enough. Click any line to jump the playhead to it, then
+              type its start to fine-tune. An end time is optional: leave it empty and the line
+              holds until the next one starts.
             </p>
 
             {hasLyrics && (
@@ -160,22 +285,25 @@ export default function App() {
               lines={lines}
               cursor={cursor}
               activeIndex={activeIndex}
-              offsetMs={offsetMs}
               dispatch={dispatch}
               onSeek={engine.seek}
               onStamp={stampLine}
             />
           </section>
 
-          <OffsetPanel offsetMs={offsetMs} dispatch={dispatch} disabled={!hasLyrics} />
           <LookPanel style={style} dispatch={dispatch} />
+
+          <RecentSessions
+            sessions={sessions}
+            activeLyricsName={lyricsName}
+            onSelect={openSession}
+          />
         </main>
 
         <aside className="pane pane--preview">
           <CanvasPreview
             canvasRef={canvasRef}
             lines={lines}
-            offsetMs={offsetMs}
             style={style}
             duration={engine.duration}
             engine={engine}
@@ -188,6 +316,11 @@ export default function App() {
             reason={exportReason}
           />
         </aside>
+      </div>
+
+      {/* Fixed bottom bar: the transport stays reachable while editing any line's times. */}
+      <div className="app__transport">
+        <Transport engine={engine} disabled={!hasAudio} />
       </div>
 
       {/* Muted in the DOM sense only — playback is routed through Web Audio for the export tap. */}

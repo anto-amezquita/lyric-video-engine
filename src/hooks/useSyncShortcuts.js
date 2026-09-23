@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { effectiveTime } from '../state/project.js'
 
 const EDITABLE = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
@@ -49,10 +50,11 @@ export function useSyncShortcuts({ enabled, engine, lines, cursor, dispatch }) {
           engine.nudge(event.shiftKey ? -10 : -2)
           break
         case 'Enter': {
-          const time = lines[cursor]?.time
-          if (time != null) {
+          /* Same jump as clicking the line: hear the moment you're tuning. */
+          const at = lines[cursor] ? effectiveTime(lines[cursor]) : null
+          if (at != null && at >= 0) {
             event.preventDefault()
-            engine.seek(time)
+            engine.seek(at)
           }
           break
         }

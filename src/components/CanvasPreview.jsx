@@ -19,7 +19,6 @@ import { buildCueList, resolveFrame } from '../state/project.js'
 export function CanvasPreview({
   canvasRef,
   lines,
-  offsetMs,
   style,
   duration,
   engine,
@@ -45,7 +44,7 @@ export function CanvasPreview({
     [textKey, style, fontReady, lines.length],
   )
 
-  const cues = useMemo(() => buildCueList(lines, offsetMs), [lines, offsetMs])
+  const cues = useMemo(() => buildCueList(lines), [lines])
 
   useEffect(() => {
     animRef.current = createAnimState()
@@ -66,7 +65,6 @@ export function CanvasPreview({
         ctx,
         layout,
         style,
-        activeIndex,
         focusIndex,
         opacity,
         progress: duration ? time / duration : 0,

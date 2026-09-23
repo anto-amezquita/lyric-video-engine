@@ -18,35 +18,50 @@ export function startPreview() {
      * detached, and killed by process group below: `npx` spawns vite as a
      * child, so killing the npx pid alone leaves the server holding the port
      * and the next test file starts a second one.
+     *
+     * --strictPort: if 4180 is still held by a leftover server, fail loudly
+     * now instead of silently starting on another port.
      */
-    const child = spawn('npx', ['vite', 'preview', '--port', '4180'], {
+    const child = spawn('npx', ['vite', 'preview', '--port', '4180', '--strictPort'], {
       cwd: path.resolve(import.meta.dirname, '..'),
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
     })
-    const timer = setTimeout(() => reject(new Error('vite preview did not start in 30s')), 30_000)
+    const stop = () => {
+      try {
+        process.kill(-child.pid, 'SIGTERM')
+      } catch {
+        child.kill()
+      }
+    }
+    /* Any failure to start must also stop the server, or it outlives the run and holds the port. */
+    const fail = (error) => {
+      clearTimeout(timer)
+      stop()
+      reject(error)
+    }
+    const timer = setTimeout(
+      () => fail(new Error(`vite preview did not start in 30s. Output:\n${output}`)),
+      30_000,
+    )
     let output = ''
-    child.stdout.on('data', (chunk) => {
-      output += chunk
+    const onData = (chunk) => {
+      /*
+       * Strip ANSI colour codes first. The test runner forces colour on for
+       * child processes, and vite bolds the port, which splits
+       * `localhost:4180` with escape codes the URL match can't see through.
+       */
+      // eslint-disable-next-line no-control-regex
+      output += String(chunk).replace(/\x1b\[[0-9;]*m/g, '')
       const match = output.match(/(http:\/\/localhost:\d+)\/?/)
       if (match) {
         clearTimeout(timer)
-        resolve({
-          url: `${match[1]}/`,
-          stop: () => {
-            try {
-              process.kill(-child.pid, 'SIGTERM')
-            } catch {
-              child.kill()
-            }
-          },
-        })
+        resolve({ url: `${match[1]}/`, stop })
       }
-    })
-    child.on('error', (error) => {
-      clearTimeout(timer)
-      reject(error)
-    })
+    }
+    child.stdout.on('data', onData)
+    child.stderr.on('data', onData)
+    child.on('error', fail)
   })
 }
 
@@ -120,9 +135,12 @@ export async function openApp(browser, url, fixtures, { maskMimeType } = {}) {
   await page.evaluate(() => localStorage.clear())
   await page.reload({ waitUntil: 'networkidle' })
 
-  const inputs = page.locator('input[type=file]')
-  await inputs.nth(0).setInputFiles(fixtures.txt)
-  await inputs.nth(1).setInputFiles(fixtures.wav)
+  /*
+   * By label, not position: the Project section's "Load project" input sits
+   * above Source, so `input[type=file]` order no longer means lyrics-then-audio.
+   */
+  await page.locator('input[aria-label="Lyrics file"]').setInputFiles(fixtures.txt)
+  await page.locator('input[aria-label="Audio file"]').setInputFiles(fixtures.wav)
   await page.waitForTimeout(400)
   return { context, page }
 }
