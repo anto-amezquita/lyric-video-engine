@@ -20,15 +20,92 @@ Its job is narrow on purpose: a session should be able to open this file and kno
 
 ## 2. Open items
 
-[List each open item as its own entry. One item = one thing someone could actually start work on today.]
+Ordered by what it costs if it goes wrong, read against `product-north-star.md`
+("reliable enough that the export is never the reason a video is late") rather
+than by effort.
 
-### [Item name]
+### 1. Check an export by eye on a real song
 
-- **Source:** [Where this came from — a stakeholder request, a spec's own deferred section, a bug found during other work, research, etc.]
-- **Why it matters:** [One or two sentences. Skip if the item name already makes it obvious.]
-- **Status:** [Not started / Spec needed / In progress / Blocked — and on what]
+- **Source:** The last unticked acceptance criterion in
+  `specs/2026-09-19-line-end-times-and-gaps.md`, now also covering the
+  background dither and the per-song colours shipped since.
+- **Why it matters:** Three changes landed that only the eye can judge, and
+  all of them are in the pipeline the product exists for. Export a song with
+  a real gap (a long intro, a break, an outro) and compare the `.mp4` against
+  the preview:
+  - gaps leave the frame empty and come back in sync, matching the preview;
+  - no banding in the dark background — the grain in `renderFrame.js` is at
+    2.5%, tuned against the default dark palette, so a light or saturated
+    background may need a different amount;
+  - the exported colours match the picked ones.
 
-[Repeat per item. Delete this bracketed template block once real items replace it.]
+  If it all holds, tick the box in the end-times spec.
+- **Status:** Ready — everything it tests is built and passing its automated
+  tests
+
+### 2. Spike automatic line alignment
+
+- **Source:** Decided 2026-09-19 while specifying end times. Syncing is manual
+  and per-line (`decisions/0004`), so a new demo means stamping the song
+  again, and the time goes to syncing instead of music.
+- **Why it matters:** This is the biggest time saving on the table, and the
+  least certain. Run two approaches in the browser against a vocal separated
+  with Ultimate Vocal Remover:
+  - **Whisper word timestamps** (base/small), with the transcript matched to
+    the known lyric lines. One multilingual model covers English and Spanish.
+  - **CTC forced alignment** (wav2vec2), given the known lyrics, so it only
+    has to find the timing. Likely tighter, especially on line ends, but
+    needs one model per language (English and Spanish), and the Spanish ones
+    are larger. MMS covers both but is likely too big for the browser.
+
+  Songs are mostly English or Spanish. Test on 2–3 real demos covering both,
+  compare start and end errors against manual timings, and note model size,
+  speed and where it fails (repeated choruses, dense mixes, mixed-language
+  lines). If it holds up, write an ADR (model, bundling vs. cached download,
+  given the local-first rule) and a spec. Alignment against the full mix is
+  worth one run too, as a baseline.
+- **Status:** Not started — waiting on separated vocals for 2–3 demos
+
+### 3. Separate vocals inside the tool
+
+- **Source:** Follows from #2. Separation currently needs UVR as a separate
+  app for every recut, since Ableton Live Intro has no stem separation.
+- **Why it matters:** The goal is to drop in the mix and get a draft sync
+  back. It costs a second model (roughly 80MB+) and slower processing, so it's
+  only worth doing if the spike shows alignment is good enough.
+- **Status:** Blocked on #2
+
+### 4. Evaluate WebCodecs for export
+
+- **Source:** `decisions/0001`, alternatives considered.
+- **Why it matters:** Faster than realtime, drops the 32MB ffmpeg dependency,
+  and gives real H.264 everywhere. The cost is hand-writing an MP4 muxer. Worth
+  revisiting once support settles — deliberately after end times and
+  alignment, because the current pipeline works on every target browser and
+  those change what the videos look like.
+- **Status:** Not started
+
+### 5. Deploy it somewhere
+
+- **Source:** Surfaced while filling `docs/architecture.md` — the deployment
+  section is the one that stayed empty.
+- **Why it matters:** The tool currently needs a local checkout to use, which
+  makes it easy to not bother. Any static host works; the only requirement is
+  that it serves `.wasm` as `application/wasm`, or the conversion fallback
+  fails to load on the browsers that need it.
+- **Status:** Not started
+
+### 6. Let a session be deleted from the list
+
+- **Source:** Deferred open question in
+  `specs/2026-09-22-recent-sessions-and-audio-persistence.md` §9.
+- **Why it matters:** Session history is deliberately uncapped and each
+  session carries its audio, so the strip only grows and so does the storage
+  behind it. Not urgent at a handful of songs; it gets worse every session.
+  Needs a delete control on each entry that clears both the `sessions` and
+  `sessionAudio` records, and a decision on whether it confirms first (the
+  one existing destructive action, clearing all timestamps, does).
+- **Status:** Not started
 
 ---
 

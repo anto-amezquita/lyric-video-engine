@@ -1,0 +1,32 @@
+{
+  "name": "lyric-video-engine",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "format": "prettier --write .",
+    "test": "node --test \"tests/*.test.js\"",
+    "test:e2e": "npm run build && node --test --test-concurrency=1 \"e2e/*.test.mjs\""
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "playwright": "^1.63.0",
+    "prettier": "^3.9.8",
+    "vite": "^8.3.0"
+  },
+  "description": "Turn a lyric .txt and a demo .wav into a 9:16 lyric video, entirely in the browser."
+}
