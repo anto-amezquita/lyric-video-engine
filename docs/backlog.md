@@ -28,16 +28,20 @@ than by effort.
 
 - **Source:** The last unticked acceptance criterion in
   `specs/2026-09-19-line-end-times-and-gaps.md`, now also covering the
-  background dither and the per-song colours shipped since.
+  per-song colours, the solid background and the lyric typeface shipped since
+  (`decisions/0005`).
 - **Why it matters:** Three changes landed that only the eye can judge, and
   all of them are in the pipeline the product exists for. Export a song with
   a real gap (a long intro, a break, an outro) and compare the `.mp4` against
   the preview:
   - gaps leave the frame empty and come back in sync, matching the preview;
-  - no banding in the dark background — the grain in `renderFrame.js` is at
-    2.5%, tuned against the default dark palette, so a light or saturated
-    background may need a different amount;
-  - the exported colours match the picked ones.
+  - the exported colours match the picked ones, and the top and bottom edge
+    fades blend into the background with no visible band;
+  - the lyrics render in Permanent Marker, not the system fallback — the face
+    loads from Google Fonts, so check an export made with a cold cache;
+  - the same with Lobster picked in the Look panel (`decisions/0006`): it
+    wraps and sizes sensibly, and Spanish accents, ñ, ¿, ¡ and the © on the
+    end card all draw in Lobster rather than a fallback.
 
   If it all holds, tick the box in the end-times spec.
 - **Status:** Ready — everything it tests is built and passing its automated

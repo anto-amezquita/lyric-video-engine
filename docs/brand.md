@@ -205,12 +205,14 @@ and neither needs one.
 
 - Display and UI: Schibsted Grotesk, 600 for headings, 400 for body.
 - Code, timestamps, and numbers: JetBrains Mono.
-- Rendered video: Schibsted Grotesk 600.
+- Rendered video: Permanent Marker 400 (`decisions/0005`).
 
 ### Typographic character
 
-Neutral grotesque, tight but not condensed. The video renders in the same face
-as the interface, so what is composed and what is exported share a voice.
+Neutral grotesque in the interface, tight but not condensed. The rendered
+video deliberately does not share it: the lyrics are set in a heavy, handmade
+marker face, because the video is the one surface that carries the artist's
+voice rather than the tool's.
 
 ### Rules
 
@@ -317,9 +319,10 @@ Not applicable.
 
 ### Social content
 
-The exported video is the only artefact that leaves this tool, and it carries no
-branding at all — no watermark, no name, no end card. It is the user's video.
-This is deliberate and should stay that way.
+The exported video is the only artefact that leaves this tool. It carries no
+watermark and no product name. The one addition is an end card the author
+chose: the song title over "Written by AMEZ", shown after the last lyric ends.
+That credit is the artist's, not the tool's, and it should stay that way.
 
 ### Documentation
 
@@ -335,4 +338,5 @@ reasoning survives the session it was decided in.
 - Does the copy name the action, in the fewest plain words?
 - Does it perform personality where it could just be quiet?
 - Does it hold up under `prefers-reduced-motion`?
-- Does it put anything on the exported video that is not the user's?
+- Does it put anything on the exported video that is not the user's? (The end
+  card credit is the author's own, so it doesn't count.)

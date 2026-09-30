@@ -77,8 +77,9 @@ bracket counts as metadata.
 
 ## 0002.1 — Amendments
 
-`[Intro]`, then `[Outro]`, were added to the note-keyword set alongside
-`[Instrumental]`, same rules and same reasoning each time. The keyword list
+`[Intro]`, then `[Outro]`, then `[Turnaround]`, were added to the note-keyword
+set alongside `[Instrumental]`, same rules and same reasoning each time. The
+keyword list
 (`NOTE_KEYWORDS` in `src/lib/tokenize.js`) is expected to keep growing
 (`[Solo]`...) as more come up in real lyric sheets; each is a one-line
 addition to the set, not a new decision.

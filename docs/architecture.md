@@ -168,11 +168,12 @@ needs an ADR that addresses that promise first.
   stamped yet, and `end` is `null` when the line holds until the next one.
   The text is read-only in the app — it comes from the `.txt`.
 - **Project** — `{ lines, cursor, lyricsName, style }`.
-- **Style** — `{ fontScale, align, showProgress, background, text }`.
-  The last two are the canvas colours, picked per song: the background is the
-  gradient's middle stop, with both ends and the edge fades derived from it,
-  and the lyric colour also paints the progress bar
-  (`src/lib/color.js`).
+- **Style** — `{ fontScale, fontFamily, align, showProgress, background, text }`.
+  `fontFamily` is the lyric typeface, one of the faces in `src/lib/fonts.js`
+  (`decisions/0006`). The last two are the canvas colours, picked per song: the background is
+  painted as a solid fill, the top and bottom edge fades are that same colour
+  going from opaque to transparent, and the lyric colour also paints the
+  progress bar (`src/lib/color.js`, `decisions/0005`).
 - **Session** (`src/lib/sessions.js`, IndexedDB) — the same fields as
   Project (minus `cursor`) plus `audioName`, `updatedAt`, keyed by
   `lyricsName`. One per song ever synced. See `decisions/0003`.
@@ -205,16 +206,11 @@ module may keep a copy.
 
 ## 7. API conventions
 
-No APIs. Three versioned local-persistence contracts exist:
+No APIs. Two local-persistence contracts exist:
 
 - `localStorage` key `lyric-video-engine/project/v1` — autosaved on every
   change; a breaking change to the project shape needs a new key, and
   `loadStoredProject` must fall back to an empty project rather than throw.
-- A portable project `.json` file, written and read only on explicit Save
-  project / Load project — carries its own `version` field
-  (`PROJECT_FILE_VERSION` in `src/state/project.js`). A file whose version
-  doesn't match the running app's is rejected outright rather than migrated;
-  see `specs/2026-09-22-project-save-load.md`.
 - IndexedDB (`src/lib/sessions.js`, `decisions/0003`) — one `sessions` record
   and one `sessionAudio` record per song ever synced, keyed by lyrics file
   name. No version field; every function degrades to a no-op/empty result on
@@ -231,10 +227,10 @@ layer (`--surface`, `--action-primary`); only the semantic layer reads the raw
 scale. Canvas colours are the one exception — a canvas cannot read custom
 properties, so they live in the project's `style` and are picked per song.
 There are two: a background and a foreground. The foreground paints both the
-lyrics and the progress bar, and the background's gradient stops and edge
-fades are derived from it. That maths, plus the contrast check the Look panel
-warns with, is in `src/lib/color.js`, kept separate from the DOM-only
-`renderFrame.js` so it can be tested.
+lyrics and the progress bar, and the background is both the solid fill and the
+colour of the edge fades. The contrast check the Look panel warns with is in
+`src/lib/color.js`, kept separate from the DOM-only `renderFrame.js` so it can
+be tested.
 
 ### Components
 

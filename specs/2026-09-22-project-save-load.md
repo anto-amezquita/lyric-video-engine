@@ -1,5 +1,9 @@
 # Project save/load as a portable file
 
+> **Superseded 2026-09-30** by `decisions/0007`. The Save project and Load
+> project buttons, the `.json` file and its version field were removed;
+> Recent sessions is the way to keep and reopen a song. Kept for history.
+
 ## 1. Overview
 
 ### Summary
