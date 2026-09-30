@@ -2,10 +2,9 @@
  * Colour helpers for the canvas renderer.
  *
  * These live outside `renderFrame.js` because that file is DOM-only and can't
- * be reached by `node --test`, while the maths here is exactly the part worth
- * pinning: the background gradient and the edge fades are all derived from
- * one picked colour, so if the derivation drifts, the fades stop matching the
- * background they're supposed to blend into.
+ * be reached by `node --test`, while the maths here is worth pinning: the
+ * edge fades are built from the picked background colour, and the Look panel's
+ * contrast warning depends on the luminance maths below.
  */
 
 /** `#rgb` or `#rrggbb` -> `{ r, g, b }`. Falls back to black on anything unparseable. */
@@ -26,54 +25,10 @@ export function hexToRgb(hex) {
   }
 }
 
-/**
- * Scale a colour's brightness. `amount` above 1 lightens toward white,
- * below 1 darkens toward black. Used to derive the gradient's top and
- * bottom stops from the one colour the user picked.
- */
-function scaleChannels(hex, amount) {
-  const { r, g, b } = hexToRgb(hex)
-  const scale = (channel) =>
-    Math.round(
-      amount >= 1
-        ? channel + (255 - channel) * (amount - 1)
-        : Math.max(0, Math.min(255, channel * amount)),
-    )
-  return { r: scale(r), g: scale(g), b: scale(b) }
-}
-
-export function shade(hex, amount) {
-  const { r, g, b } = scaleChannels(hex, amount)
-  return `rgb(${r}, ${g}, ${b})`
-}
-
-/** The same shaded colour at a given alpha — the transparent end of an edge fade. */
-export function shadeAlpha(hex, amount, alpha) {
-  const { r, g, b } = scaleChannels(hex, amount)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
 /** A colour at a given alpha, for the progress track and the edge fades. */
 export function withAlpha(hex, alpha) {
   const { r, g, b } = hexToRgb(hex)
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
-/**
- * The three gradient stops, derived from the picked background colour.
- * The picked colour is the middle: the frame darkens slightly toward the
- * top and more toward the bottom, the same relationship the original fixed
- * palette had.
- */
-export const GRADIENT_TOP = 0.72
-export const GRADIENT_BOTTOM = 0.52
-
-export function backgroundStops(hex) {
-  return {
-    top: shade(hex, GRADIENT_TOP),
-    middle: shade(hex, 1),
-    bottom: shade(hex, GRADIENT_BOTTOM),
-  }
 }
 
 /**

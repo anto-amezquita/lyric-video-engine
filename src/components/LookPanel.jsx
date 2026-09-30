@@ -1,4 +1,5 @@
 import { contrastRatio } from '../lib/color.js'
+import { FONT_FAMILIES, resolveFontFamily } from '../lib/fonts.js'
 import { DEFAULT_STYLE } from '../state/project.js'
 
 /** A labelled colour swatch. The hex is shown so a value can be read off and reused. */
@@ -44,7 +45,7 @@ export function LookPanel({ style, dispatch }) {
           <input
             type="range"
             min={0.6}
-            max={1.6}
+            max={2}
             step={0.05}
             value={style.fontScale}
             onChange={(event) => set({ fontScale: Number(event.target.value) })}
@@ -65,6 +66,23 @@ export function LookPanel({ style, dispatch }) {
       </div>
 
       <div className="panel__grid">
+        <label className="field">
+          <span className="field__label">Typeface</span>
+          <select
+            className="select"
+            value={resolveFontFamily(style)}
+            onChange={(event) => set({ fontFamily: event.target.value })}
+          >
+            {FONT_FAMILIES.map((family) => (
+              <option key={family} value={family}>
+                {family}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="panel__grid">
         <ColorField
           label="Background"
           value={style.background}
@@ -76,7 +94,7 @@ export function LookPanel({ style, dispatch }) {
       <p className="hint" role="status" data-tone={lowContrast ? 'error' : undefined}>
         {lowContrast
           ? `Lyrics sit at ${textContrast.toFixed(1)}:1 against the background — below 4.5:1, so they may be hard to read on a phone.`
-          : `The background is a soft vertical gradient built from this colour. The lyric colour also drives the progress bar. Contrast ${textContrast.toFixed(1)}:1.`}
+          : `The background is a solid fill of this colour. The lyric colour also drives the progress bar. Contrast ${textContrast.toFixed(1)}:1.`}
       </p>
 
       <div className="btn-row">

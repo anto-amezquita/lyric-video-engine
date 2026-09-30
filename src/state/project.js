@@ -1,13 +1,13 @@
 import { buildLines } from '../lib/tokenize.js'
+import { DEFAULT_FONT_FAMILY } from '../lib/fonts.js'
 import { clamp } from '../lib/time.js'
 
 export const STORAGE_KEY = 'lyric-video-engine/project/v1'
 
-/** Version of the portable project-file contract (Save project / Load project). */
-export const PROJECT_FILE_VERSION = 1
-
 export const DEFAULT_STYLE = {
   fontScale: 1,
+  /* Lyric typeface, per song. Projects saved before the choice existed fall back to this on load. */
+  fontFamily: DEFAULT_FONT_FAMILY,
   align: 'center',
   showProgress: true,
   /*
@@ -128,6 +128,26 @@ export function resolveFrame(cues, time) {
   return { activeIndex: cue.index, focusIndex: cue.index, opacity }
 }
 
+/** How long the end card takes to fade in once the last lyric has left the frame. */
+export const END_CARD_FADE_SECONDS = 0.6
+
+/** The song title shown on the end card: the lyrics file name without its extension. */
+export function songTitle(lyricsName) {
+  const title = (lyricsName ?? '').replace(/\.[^.]+$/, '').trim()
+  return title || null
+}
+
+/**
+ * How visible the end card is at `time`, 0 to 1. It appears after the last
+ * lyric's end time and fades in; a last line with no end holds to the end of
+ * the track, so it never leaves and there is no card.
+ */
+export function endCardOpacity(cues, time) {
+  const last = cues[cues.length - 1]
+  if (!last || !Number.isFinite(last.until) || time < last.until) return 0
+  return Math.min(1, (time - last.until) / END_CARD_FADE_SECONDS)
+}
+
 /** True when an end would land at or before its line's start. */
 export function isEndBeforeStart(time, end) {
   return time != null && end != null && end <= time
@@ -145,7 +165,7 @@ export function projectReducer(state, action) {
       return { ...state, lines, lyricsName: action.name ?? state.lyricsName, cursor: 0 }
     }
 
-    /* A loaded project file replaces everything in one step — no merge. */
+    /* An opened session replaces everything in one step — no merge. */
     case 'load-project':
       return action.project
 
@@ -214,8 +234,8 @@ export function projectReducer(state, action) {
  */
 
 /**
- * Normalize a parsed payload (from localStorage, a loaded project file, or a
- * session record) into a full project shape, or null if it isn't one.
+ * Normalize a parsed payload (from localStorage or a session record) into a
+ * full project shape, or null if it isn't one.
  */
 function projectFromPayload(saved) {
   if (!saved || !Array.isArray(saved.lines)) return null
@@ -266,46 +286,10 @@ export function storeProject(state) {
 }
 
 /**
- * Serialize the project to a portable, human-readable `.json` string —
- * everything `storeProject` saves, plus a version field and the audio
- * file's name for reference. `audioName` is informational only: it is never
- * read back on load, since audio is always re-picked separately.
- */
-export function serializeProjectFile(state, audioName) {
-  const { lines, lyricsName, style } = state
-  return JSON.stringify(
-    {
-      version: PROJECT_FILE_VERSION,
-      lines,
-      lyricsName,
-      style,
-      audioName: audioName ?? null,
-    },
-    null,
-    2,
-  )
-}
-
-/**
  * Build a full project from a saved session record (`src/lib/sessions.js`),
  * through the same normalization every other load path uses. Falls back to
  * an empty project if the record is somehow malformed.
  */
 export function projectFromSession(session) {
   return projectFromPayload(session) ?? initialProject
-}
-
-/**
- * Parse a loaded project file's text back into a full project, or null if
- * it isn't valid JSON, has no `lines` array, or is a version this build
- * doesn't understand.
- */
-export function parseProjectFile(raw) {
-  try {
-    const saved = JSON.parse(raw)
-    if (saved?.version !== PROJECT_FILE_VERSION) return null
-    return projectFromPayload(saved)
-  } catch {
-    return null
-  }
 }

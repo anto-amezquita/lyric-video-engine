@@ -1,33 +1,25 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  GRADIENT_BOTTOM,
-  GRADIENT_TOP,
-  backgroundStops,
-  contrastRatio,
-  hexToRgb,
-  shade,
-  shadeAlpha,
-  withAlpha,
-} from '../src/lib/color.js'
+import { contrastRatio, hexToRgb, withAlpha } from '../src/lib/color.js'
+import { DEFAULT_FONT_FAMILY, FONT_FAMILIES, resolveFontFamily } from '../src/lib/fonts.js'
 import { sessionId, sessionRecord } from '../src/lib/sessions.js'
 import { buildLines, tokenizeLyrics } from '../src/lib/tokenize.js'
 import { formatRelativeTime, formatTime, parseTime } from '../src/lib/time.js'
 import {
   DEFAULT_STYLE,
+  END_CARD_FADE_SECONDS,
   FADE_SECONDS,
-  PROJECT_FILE_VERSION,
   STORAGE_KEY,
   buildCueList,
   effectiveTime,
+  endCardOpacity,
   findActiveIndex,
   initialProject,
   loadStoredProject,
-  parseProjectFile,
   projectFromSession,
   projectReducer,
   resolveFrame,
-  serializeProjectFile,
+  songTitle,
 } from '../src/state/project.js'
 
 const RAW = `Hold the line\n\nI was wrong\nCome back around\n`
@@ -48,13 +40,15 @@ test('bracketed lines are metadata and are dropped', () => {
   assert.deepEqual(tokenizeLyrics(raw), ['I was wrong'])
 })
 
-test('[Instrumental], [Intro] and [Outro] survive as ♪ cues, case-insensitive and spacing-tolerant', () => {
+test('[Instrumental], [Intro], [Outro] and [Turnaround] survive as ♪ cues, case-insensitive and spacing-tolerant', () => {
   assert.deepEqual(tokenizeLyrics('[Instrumental]'), ['♪'])
   assert.deepEqual(tokenizeLyrics('[ INSTRUMENTAL ]'), ['♪'])
   assert.deepEqual(tokenizeLyrics('[Intro]'), ['♪'])
   assert.deepEqual(tokenizeLyrics('[ intro ]'), ['♪'])
   assert.deepEqual(tokenizeLyrics('[Outro]'), ['♪'])
   assert.deepEqual(tokenizeLyrics('[ OUTRO ]'), ['♪'])
+  assert.deepEqual(tokenizeLyrics('[Turnaround]'), ['♪'])
+  assert.deepEqual(tokenizeLyrics('[ turnaround ]'), ['♪'])
   assert.deepEqual(
     tokenizeLyrics('[Intro]\nI was wrong\n[instrumental]\nCome back around\n[Outro]'),
     ['♪', 'I was wrong', '♪', 'Come back around', '♪'],
@@ -326,52 +320,41 @@ test('projects saved before end times load with every end unset', () => {
   }
 })
 
-/* ---------- Project save/load file ---------- */
+/* ---------- Opening a saved project ---------- */
 
-test('a saved project round-trips through load back to the same lines and style', () => {
+test('a saved session opens as the same lines and style', () => {
   let state = loaded()
   state = projectReducer(state, { type: 'set-time', id: state.lines[0].id, time: 1.5 })
   state = projectReducer(state, { type: 'set-end', id: state.lines[0].id, end: 3 })
   state = projectReducer(state, { type: 'set-style', style: { fontScale: 1.2 } })
 
-  const json = serializeProjectFile(state, 'demo.wav')
-  const parsed = parseProjectFile(json)
+  const opened = projectFromSession(sessionRecord({ ...state, audioName: 'demo.wav' }))
 
   assert.deepEqual(
-    parsed.lines.map((line) => [line.text, line.time, line.end]),
+    opened.lines.map((line) => [line.text, line.time, line.end]),
     state.lines.map((line) => [line.text, line.time, line.end]),
   )
-  assert.equal(parsed.style.fontScale, 1.2)
-  assert.equal(parsed.lyricsName, state.lyricsName)
-  assert.equal(parsed.cursor, 0)
+  assert.equal(opened.style.fontScale, 1.2)
+  assert.equal(opened.lyricsName, state.lyricsName)
+  assert.equal(opened.cursor, 0)
 })
 
-test('a saved file carries the current version and the audio name for reference only', () => {
-  const json = serializeProjectFile(loaded(), 'demo.wav')
-  const saved = JSON.parse(json)
-
-  assert.equal(saved.version, PROJECT_FILE_VERSION)
-  assert.equal(saved.audioName, 'demo.wav')
-})
-
-test('parseProjectFile rejects invalid JSON, a missing lines array, and an unknown version', () => {
-  assert.equal(parseProjectFile('not json'), null)
-  assert.equal(parseProjectFile(JSON.stringify({ version: PROJECT_FILE_VERSION })), null)
-  assert.equal(
-    parseProjectFile(JSON.stringify({ version: PROJECT_FILE_VERSION + 1, lines: [] })),
-    null,
-  )
+test('a malformed record opens as an empty project instead of crashing', () => {
+  assert.deepEqual(projectFromSession(null), initialProject)
+  assert.deepEqual(projectFromSession({}), initialProject)
+  assert.deepEqual(projectFromSession({ lines: 'nope' }), initialProject)
 })
 
 test('load-project replaces the whole state in one step', () => {
   let state = loaded()
   state = projectReducer(state, { type: 'set-time', id: state.lines[0].id, time: 5 })
 
-  const incoming = parseProjectFile(
-    serializeProjectFile(
-      { lines: [{ id: 'x', text: 'Only this line', time: 2, end: null }], style: {} },
-      null,
-    ),
+  const incoming = projectFromSession(
+    sessionRecord({
+      lyricsName: 'Other.txt',
+      lines: [{ id: 'x', text: 'Only this line', time: 2, end: null }],
+      style: {},
+    }),
   )
   state = projectReducer(state, { type: 'load-project', project: incoming })
 
@@ -379,20 +362,17 @@ test('load-project replaces the whole state in one step', () => {
   assert.equal(state.lines[0].text, 'Only this line')
 })
 
-test('a project saved with a global offset folds it into its timestamps on load', () => {
+test('a record saved with a global offset folds it into its timestamps on open', () => {
   /* The offset was removed in favour of absolute times; an older payload
    * still carrying one has to keep playing where it played before. */
-  const parsed = parseProjectFile(
-    JSON.stringify({
-      version: PROJECT_FILE_VERSION,
-      offsetMs: -1500,
-      lines: [
-        { id: 'a', text: 'a', time: 10, end: 12 },
-        { id: 'b', text: 'b', time: 0.5, end: null },
-      ],
-      style: {},
-    }),
-  )
+  const parsed = projectFromSession({
+    offsetMs: -1500,
+    lines: [
+      { id: 'a', text: 'a', time: 10, end: 12 },
+      { id: 'b', text: 'b', time: 0.5, end: null },
+    ],
+    style: {},
+  })
 
   assert.deepEqual(
     parsed.lines.map((line) => [line.time, line.end]),
@@ -456,6 +436,33 @@ test('formatRelativeTime buckets by minute, hour and day', () => {
   assert.equal(formatRelativeTime(now - 2 * 86_400_000, now), '2d ago')
 })
 
+/* ---------- End card ---------- */
+
+test('the song title is the lyrics file name without its extension', () => {
+  assert.equal(songTitle('Copycat.txt'), 'Copycat')
+  assert.equal(songTitle('So Bad.v2.txt'), 'So Bad.v2')
+  assert.equal(songTitle(null), null)
+  assert.equal(songTitle('.txt'), null)
+})
+
+test('the end card fades in once the last lyric has left, and never before', () => {
+  const cues = buildCueList(timed([1, 3], [10, 14]))
+
+  assert.equal(endCardOpacity(cues, 13.9), 0)
+  assert.equal(endCardOpacity(cues, 14), 0)
+  near(endCardOpacity(cues, 14 + END_CARD_FADE_SECONDS / 2), 0.5)
+  near(endCardOpacity(cues, 14 + END_CARD_FADE_SECONDS), 1)
+  assert.equal(endCardOpacity(cues, 99), 1)
+})
+
+test('a last line with no end holds to the end of the track, so there is no end card', () => {
+  assert.equal(endCardOpacity(buildCueList(timed([1, 3], [10, null])), 99), 0)
+})
+
+test('with nothing timed there is no end card', () => {
+  assert.equal(endCardOpacity(buildCueList(timed([null, null])), 99), 0)
+})
+
 /* ---------- Canvas colours ---------- */
 
 test('hexToRgb reads both shorthand and full hex, and refuses anything else', () => {
@@ -465,23 +472,10 @@ test('hexToRgb reads both shorthand and full hex, and refuses anything else', ()
   assert.deepEqual(hexToRgb('teal'), { r: 0, g: 0, b: 0 }, 'unparseable falls back to black')
 })
 
-test('shade darkens below 1 and lightens toward white above it', () => {
-  assert.equal(shade('#646464', 0.5), 'rgb(50, 50, 50)')
-  assert.equal(shade('#646464', 1), 'rgb(100, 100, 100)')
-  assert.equal(shade('#000000', 2), 'rgb(255, 255, 255)')
-})
-
-test('shadeAlpha matches shade but carries an alpha, for the transparent end of a fade', () => {
-  assert.equal(shadeAlpha('#646464', 0.5, 0), 'rgba(50, 50, 50, 0)')
+test('withAlpha keeps the colour and sets only the alpha, so a fade has no grey fringe', () => {
   assert.equal(withAlpha('#646464', 0.16), 'rgba(100, 100, 100, 0.16)')
-})
-
-test('the gradient keeps the picked colour in the middle and darkens both ends', () => {
-  const stops = backgroundStops('#191512')
-  assert.equal(stops.middle, 'rgb(25, 21, 18)', 'the picked colour is the middle stop')
-  assert.equal(stops.top, shade('#191512', GRADIENT_TOP))
-  assert.equal(stops.bottom, shade('#191512', GRADIENT_BOTTOM))
-  assert.ok(GRADIENT_BOTTOM < GRADIENT_TOP, 'the bottom is the darkest end')
+  assert.equal(withAlpha('#191512', 1), 'rgba(25, 21, 18, 1)')
+  assert.equal(withAlpha('#191512', 0), 'rgba(25, 21, 18, 0)')
 })
 
 test('contrastRatio matches the WCAG extremes and is order-independent', () => {
@@ -495,4 +489,52 @@ test('the default lyric colour is readable on the default background', () => {
     contrastRatio(DEFAULT_STYLE.text, DEFAULT_STYLE.background) >= 4.5,
     'the shipped palette should not trip the Look panel warning',
   )
+})
+
+/* ---------- Lyric typeface ---------- */
+
+test('the typeface list offers the current face and Lobster, and defaults to the current face', () => {
+  assert.deepEqual(FONT_FAMILIES, ['Permanent Marker', 'Lobster'])
+  assert.equal(DEFAULT_FONT_FAMILY, 'Permanent Marker')
+  assert.equal(DEFAULT_STYLE.fontFamily, DEFAULT_FONT_FAMILY)
+})
+
+test('resolveFontFamily keeps a shipped face and falls back for anything else', () => {
+  assert.equal(resolveFontFamily({ fontFamily: 'Lobster' }), 'Lobster')
+  assert.equal(resolveFontFamily({ fontFamily: 'Comic Sans' }), DEFAULT_FONT_FAMILY)
+  assert.equal(resolveFontFamily({}), DEFAULT_FONT_FAMILY)
+  assert.equal(resolveFontFamily(undefined), DEFAULT_FONT_FAMILY)
+})
+
+test('a project saved before the typeface choice loads in the original face', () => {
+  const project = projectFromSession(
+    sessionRecord({ lyricsName: 'Old.txt', lines: [], style: { fontScale: 1.1 } }),
+  )
+  assert.equal(project.style.fontFamily, 'Permanent Marker')
+})
+
+test('the chosen typeface survives being saved and opened', () => {
+  let state = loaded()
+  state = projectReducer(state, { type: 'set-style', style: { fontFamily: 'Lobster' } })
+
+  const opened = projectFromSession(sessionRecord(state))
+  assert.equal(opened.style.fontFamily, 'Lobster')
+})
+
+/* ---------- New project ---------- */
+
+test('reset gives an empty project with every default, look included', () => {
+  let state = loaded()
+  state = projectReducer(state, { type: 'set-time', id: state.lines[0].id, time: 4 })
+  state = projectReducer(state, {
+    type: 'set-style',
+    style: { fontFamily: 'Lobster', background: '#ff00aa', fontScale: 1.4 },
+  })
+
+  const fresh = projectReducer(state, { type: 'reset' })
+
+  assert.deepEqual(fresh.lines, [])
+  assert.equal(fresh.lyricsName, null)
+  assert.equal(fresh.cursor, 0)
+  assert.deepEqual(fresh.style, DEFAULT_STYLE)
 })

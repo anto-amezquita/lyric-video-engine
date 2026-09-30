@@ -6,19 +6,12 @@
  * falls out of each line's distance from the focal point, so one eased number
  * animates the whole stack.
  *
- * Colours come from `style` — every one is picked per song. A canvas can't
- * read CSS custom properties, so the maths that derives the gradient and the
- * edge fades from the picked background lives in `src/lib/color.js`, where
- * it can be tested.
+ * Colours come from `style` — every one is picked per song. The background
+ * is a solid fill of the picked colour, and the top and bottom edge fades are
+ * that same colour going from opaque to transparent.
  */
-import {
-  GRADIENT_BOTTOM,
-  GRADIENT_TOP,
-  backgroundStops,
-  shade,
-  shadeAlpha,
-  withAlpha,
-} from './color.js'
+import { withAlpha } from './color.js'
+import { resolveFontFamily } from './fonts.js'
 
 export const VIDEO_WIDTH = 1080
 export const VIDEO_HEIGHT = 1920
@@ -28,20 +21,22 @@ const FOCAL_Y = VIDEO_HEIGHT * 0.46
 const FALLOFF = 300
 const EDGE_FADE = 420
 
-export const CANVAS_FONT = 'Schibsted Grotesk'
+/** Second line of the end card, under the song title. */
+export const END_CARD_CREDIT = 'Written by AMEZ'
 
 export function baseFontSize(style) {
-  return Math.round(70 * (style.fontScale ?? 1))
+  return Math.round(140 * (style.fontScale ?? 1))
 }
 
-function fontSpec(size) {
-  return `600 ${size}px "${CANVAS_FONT}", system-ui, sans-serif`
+/* Every lyric face ships a single 400 weight (see fonts.js); 700 would fake a bolder. */
+function fontSpec(style, size) {
+  return `400 ${size}px "${resolveFontFamily(style)}", system-ui, sans-serif`
 }
 
 /** Load the display face before first paint, so no frame renders in a fallback. */
 export function ensureFontLoaded(style) {
   if (!document.fonts?.load) return Promise.resolve()
-  return document.fonts.load(fontSpec(baseFontSize(style))).catch(() => {})
+  return document.fonts.load(fontSpec(style, baseFontSize(style))).catch(() => {})
 }
 
 function wrap(ctx, text, maxWidth) {
@@ -65,16 +60,19 @@ function wrap(ctx, text, maxWidth) {
 /**
  * Flow the lyric blocks top to bottom and record each block's centre. Returns
  * positions in canvas pixels, independent of playback time.
+ *
+ * When a `title` is given, the end card (title over the credit) is wrapped and
+ * measured here too, so drawing it costs nothing per frame.
  */
-export function computeLayout(lines, style) {
+export function computeLayout(lines, style, title = null) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
   const size = baseFontSize(style)
-  ctx.font = fontSpec(size)
+  ctx.font = fontSpec(style, size)
 
   const maxWidth = VIDEO_WIDTH - PADDING_X * 2
-  const rowHeight = size * 1.2
-  const blockGap = size * 0.85
+  const rowHeight = size * 1.1
+  const blockGap = size * 0.5
 
   let y = 0
   const blocks = lines.map((line) => {
@@ -85,7 +83,28 @@ export function computeLayout(lines, style) {
     return block
   })
 
-  return { blocks, size, rowHeight, totalHeight: Math.max(0, y - blockGap) }
+  let card = null
+  if (title) {
+    const creditSize = Math.round(size * 0.5)
+    const creditRowHeight = creditSize * 1.0
+    ctx.font = fontSpec(style, creditSize)
+    const titleRows = wrap(ctx, `${title} ©`, maxWidth)
+    const creditRows = wrap(ctx, END_CARD_CREDIT, maxWidth)
+    const titleHeight = titleRows.length * creditRowHeight
+    const gap = size * 0.1
+    const creditHeight = creditRows.length * creditRowHeight
+    card = {
+      titleRows,
+      creditRows,
+      creditSize,
+      creditRowHeight,
+      titleHeight,
+      gap,
+      height: titleHeight + gap + creditHeight,
+    }
+  }
+
+  return { blocks, size, rowHeight, card, totalHeight: Math.max(0, y - blockGap) }
 }
 
 /** Mutable easing state, owned by the preview component and reset on load. */
@@ -93,39 +112,11 @@ export function createAnimState() {
   return { scroll: null, lastFrame: null }
 }
 
-/**
- * A small tile of random per-pixel gray noise, tiled across the background
- * at low opacity. The gradient below is dark, large, and low-contrast —
- * exactly the conditions where 8-bit colour visibly bands into discrete
- * steps instead of reading as smooth. A fixed grain dithers it away. Same
- * canvas gets recorded on export (`decisions/0001`), so this fixes both the
- * live preview and the exported file in one place.
- */
-function createGrainPattern(ctx) {
-  const size = 64
-  const noise = document.createElement('canvas')
-  noise.width = size
-  noise.height = size
-  const noiseCtx = noise.getContext('2d')
-  const imageData = noiseCtx.createImageData(size, size)
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    const value = Math.floor(Math.random() * 255)
-    imageData.data[i] = value
-    imageData.data[i + 1] = value
-    imageData.data[i + 2] = value
-    imageData.data[i + 3] = 255
-  }
-  noiseCtx.putImageData(imageData, 0, 0)
-  return ctx.createPattern(noise, 'repeat')
-}
-
 /*
- * The background never changes per frame — same colours, same grain, every
- * time — so it is painted once into an offscreen canvas and reused, rather
- * than rebuilding the gradient and noise on every one of 30 frames a
- * second. Cheaper, and it also means the dithering only has to be computed
- * once per page load. Cached against the colour it was painted with, so
- * picking a new background repaints it exactly once.
+ * The background is a solid fill of the picked colour and never changes per
+ * frame, so it is painted once into an offscreen canvas and reused. Cached
+ * against the colour it was painted with, so picking a new background
+ * repaints it exactly once.
  */
 let backgroundBitmap = null
 let backgroundKey = null
@@ -138,18 +129,8 @@ function getBackgroundBitmap(backgroundColor) {
   canvas.height = VIDEO_HEIGHT
   const ctx = canvas.getContext('2d')
 
-  const stops = backgroundStops(backgroundColor)
-  const gradient = ctx.createLinearGradient(0, 0, 0, VIDEO_HEIGHT)
-  gradient.addColorStop(0, stops.top)
-  gradient.addColorStop(0.5, stops.middle)
-  gradient.addColorStop(1, stops.bottom)
-  ctx.fillStyle = gradient
+  ctx.fillStyle = backgroundColor
   ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT)
-
-  ctx.globalAlpha = 0.025
-  ctx.fillStyle = createGrainPattern(ctx)
-  ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT)
-  ctx.globalAlpha = 1
 
   backgroundBitmap = canvas
   backgroundKey = backgroundColor
@@ -161,24 +142,57 @@ function paintBackground(ctx, style) {
 }
 
 /*
- * The fades have to match the gradient they sit on, or the top and bottom of
- * the frame reads as a band of the wrong colour — so both ends are derived
- * from the same picked colour as the background stops.
+ * The fades are the picked background colour itself, fully opaque at the
+ * frame edge and transparent toward the lyrics. Both ends share the same RGB
+ * (only alpha changes), so the fade never passes through a grey fringe.
  */
 function paintEdgeFades(ctx, style) {
   const background = style.background ?? '#191512'
+  const opaque = withAlpha(background, 1)
+  const clear = withAlpha(background, 0)
 
   const top = ctx.createLinearGradient(0, 0, 0, EDGE_FADE)
-  top.addColorStop(0, shade(background, GRADIENT_TOP))
-  top.addColorStop(1, shadeAlpha(background, GRADIENT_TOP, 0))
+  top.addColorStop(0, opaque)
+  top.addColorStop(1, clear)
   ctx.fillStyle = top
   ctx.fillRect(0, 0, VIDEO_WIDTH, EDGE_FADE)
 
   const bottom = ctx.createLinearGradient(0, VIDEO_HEIGHT, 0, VIDEO_HEIGHT - EDGE_FADE)
-  bottom.addColorStop(0, shade(background, GRADIENT_BOTTOM))
-  bottom.addColorStop(1, shadeAlpha(background, GRADIENT_BOTTOM, 0))
+  bottom.addColorStop(0, opaque)
+  bottom.addColorStop(1, clear)
   ctx.fillStyle = bottom
   ctx.fillRect(0, VIDEO_HEIGHT - EDGE_FADE, VIDEO_WIDTH, EDGE_FADE)
+}
+
+/*
+ * The end card: song title over the credit, centred on the same focal point as
+ * the lyrics and aligned the way they are. `opacity` comes from
+ * `endCardOpacity`, which is 0 until the last lyric has left the frame.
+ */
+function paintEndCard(ctx, layout, style, opacity) {
+  const { card } = layout
+  if (!card || opacity <= 0) return
+
+  const centered = style.align === 'center'
+  const x = centered ? VIDEO_WIDTH / 2 : PADDING_X
+  const top = FOCAL_Y - card.height / 2
+  const creditTop = top + card.titleHeight + card.gap
+
+  ctx.save()
+  ctx.textAlign = centered ? 'center' : 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = style.text ?? '#faf8f5'
+
+  ctx.globalAlpha = opacity
+  ctx.font = fontSpec(style, card.creditSize)
+  card.titleRows.forEach((row, i) =>
+    ctx.fillText(row, x, top + card.creditRowHeight * (i + 0.5)),
+  )
+
+  card.creditRows.forEach((row, i) =>
+    ctx.fillText(row, x, creditTop + card.creditRowHeight * (i + 0.5)),
+  )
+  ctx.restore()
 }
 
 function paintProgress(ctx, progress, style) {
@@ -212,6 +226,7 @@ export function renderFrame({
   anim,
   now,
   animate = true,
+  endCard = 0,
 }) {
   paintBackground(ctx, style)
 
@@ -230,7 +245,7 @@ export function renderFrame({
     const centered = style.align === 'center'
     ctx.textAlign = centered ? 'center' : 'left'
     ctx.textBaseline = 'middle'
-    ctx.font = `600 ${size}px "${CANVAS_FONT}", system-ui, sans-serif`
+    ctx.font = fontSpec(style, size)
     const x = centered ? VIDEO_WIDTH / 2 : PADDING_X
 
     blocks.forEach((block) => {
@@ -257,6 +272,7 @@ export function renderFrame({
   }
 
   ctx.globalAlpha = 1
+  paintEndCard(ctx, layout, style, endCard)
   paintEdgeFades(ctx, style)
   if (style.showProgress) paintProgress(ctx, progress, style)
 }

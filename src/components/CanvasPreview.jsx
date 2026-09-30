@@ -7,7 +7,8 @@ import {
   ensureFontLoaded,
   renderFrame,
 } from '../lib/renderFrame.js'
-import { buildCueList, resolveFrame } from '../state/project.js'
+import { resolveFontFamily } from '../lib/fonts.js'
+import { buildCueList, endCardOpacity, resolveFrame, songTitle } from '../state/project.js'
 
 /**
  * The 9:16 preview, and the surface the exporter records.
@@ -19,6 +20,7 @@ import { buildCueList, resolveFrame } from '../state/project.js'
 export function CanvasPreview({
   canvasRef,
   lines,
+  lyricsName,
   style,
   duration,
   engine,
@@ -26,11 +28,17 @@ export function CanvasPreview({
   onActiveIndexChange,
 }) {
   const animRef = useRef(createAnimState())
-  const [fontReady, setFontReady] = useState(false)
+  /*
+   * Which family has finished loading, not just whether one has. Switching
+   * typeface changes this once the new face arrives, which re-measures the
+   * layout — wrapping in the fallback face would otherwise stick.
+   */
+  const [loadedFamily, setLoadedFamily] = useState(null)
 
   useEffect(() => {
     let cancelled = false
-    ensureFontLoaded(style).then(() => !cancelled && setFontReady(true))
+    const family = resolveFontFamily(style)
+    ensureFontLoaded(style).then(() => !cancelled && setLoadedFamily(family))
     return () => {
       cancelled = true
     }
@@ -38,10 +46,11 @@ export function CanvasPreview({
 
   /* Wrapping is measured once per text/style change, not per frame. */
   const textKey = useMemo(() => lines.map((line) => line.text).join('\n'), [lines])
+  const title = songTitle(lyricsName)
   const layout = useMemo(
-    () => computeLayout(lines, style),
+    () => computeLayout(lines, style, title),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [textKey, style, fontReady, lines.length],
+    [textKey, style, loadedFamily, lines.length, title],
   )
 
   const cues = useMemo(() => buildCueList(lines), [lines])
@@ -68,6 +77,7 @@ export function CanvasPreview({
         focusIndex,
         opacity,
         progress: duration ? time / duration : 0,
+        endCard: endCardOpacity(cues, time),
         anim: animRef.current,
         now,
       })

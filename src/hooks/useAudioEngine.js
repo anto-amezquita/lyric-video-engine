@@ -51,6 +51,21 @@ export function useAudioEngine() {
 
   const pause = useCallback(() => audioRef.current?.pause(), [])
 
+  /**
+   * Drop the loaded audio entirely. Removing the `src` attribute alone leaves
+   * the element playing its current resource, so it is paused, emptied and
+   * reloaded first.
+   */
+  const clearAudio = useCallback(() => {
+    const audio = audioRef.current
+    if (audio) {
+      audio.pause()
+      audio.removeAttribute('src')
+      audio.load()
+    }
+    setAudioFile(null)
+  }, [])
+
   const toggle = useCallback(() => {
     const audio = audioRef.current
     if (!audio?.src) return
@@ -107,7 +122,8 @@ export function useAudioEngine() {
     audioProps,
     audioFile,
     setAudioFile,
-    duration,
+    clearAudio,
+    duration: audioFile ? duration : 0,
     isPlaying,
     subscribe,
     getTime,

@@ -9,7 +9,6 @@ import { Transport } from './components/Transport.jsx'
 import { useAudioEngine } from './hooks/useAudioEngine.js'
 import { useExport } from './hooks/useExport.js'
 import { useSyncShortcuts } from './hooks/useSyncShortcuts.js'
-import { downloadBlob } from './lib/recorder.js'
 import {
   listSessions,
   loadSessionAudio,
@@ -19,10 +18,8 @@ import {
 } from './lib/sessions.js'
 import {
   loadStoredProject,
-  parseProjectFile,
   projectFromSession,
   projectReducer,
-  serializeProjectFile,
   storeProject,
 } from './state/project.js'
 import './styles/global.css'
@@ -78,33 +75,21 @@ export default function App() {
     [dispatch],
   )
 
-  const projectInputRef = useRef(null)
-  const [projectMessage, setProjectMessage] = useState('')
-
-  const saveProjectFile = useCallback(() => {
-    const json = serializeProjectFile(project, engine.audioFile?.name)
-    downloadBlob(
-      new Blob([json], { type: 'application/json' }),
-      `${safeFilename(project.lyricsName ?? engine.audioFile?.name)}.lve-project.json`,
-    )
-  }, [project, engine.audioFile])
-
-  const loadProjectFile = useCallback(
-    (file) => {
-      const reader = new FileReader()
-      reader.addEventListener('load', () => {
-        const parsed = parseProjectFile(String(reader.result))
-        if (!parsed) {
-          setProjectMessage(`"${file.name}" isn't a project file this version understands.`)
-          return
-        }
-        setProjectMessage('')
-        dispatch({ type: 'load-project', project: parsed })
-      })
-      reader.readAsText(file)
-    },
-    [dispatch],
-  )
+  /* Everything goes, look included: lyrics, timestamps, audio and colours back to the defaults. */
+  const newProject = useCallback(() => {
+    if (
+      (hasLyrics || hasAudio) &&
+      !window.confirm(
+        `Start a new project? The lyrics, timestamps, audio and look are cleared.${
+          hasLyrics ? ' The song stays in Recent sessions.' : ''
+        }`,
+      )
+    ) {
+      return
+    }
+    engine.clearAudio()
+    dispatch({ type: 'reset' })
+  }, [hasLyrics, hasAudio, engine])
 
   /* ---------- Recent sessions: audio persistence across a reload ---------- */
 
@@ -185,33 +170,13 @@ export default function App() {
               <h2 className="section__title">Project</h2>
             </div>
             <div className="btn-row">
-              <button type="button" className="btn btn--ghost" onClick={saveProjectFile}>
-                Save project
+              <button type="button" className="btn btn--ghost" onClick={newProject}>
+                New project
               </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => projectInputRef.current?.click()}
-              >
-                Load project
-              </button>
-              <input
-                ref={projectInputRef}
-                type="file"
-                accept=".json,application/json"
-                aria-label="Load project file"
-                className="sr-only"
-                tabIndex={-1}
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) loadProjectFile(file)
-                  event.target.value = ''
-                }}
-              />
             </div>
-            <p className="hint" role="status" data-tone={projectMessage ? 'error' : undefined}>
-              {projectMessage ||
-                'Saves lines, timestamps and look to a file you keep. Audio is re-picked separately.'}
+            <p className="hint">
+              Every song is saved in the app as you work, with its audio. Open one again from
+              Recent sessions.
             </p>
           </section>
 
@@ -304,6 +269,7 @@ export default function App() {
           <CanvasPreview
             canvasRef={canvasRef}
             lines={lines}
+            lyricsName={lyricsName}
             style={style}
             duration={engine.duration}
             engine={engine}

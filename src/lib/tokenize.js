@@ -10,7 +10,7 @@ export function createLineId() {
 const BRACKET_LINE = /^\[(.*)\]$/
 
 /** Bracket keywords that become a stampable "♪" cue instead of being dropped. */
-const NOTE_KEYWORDS = new Set(['instrumental', 'intro', 'outro'])
+const NOTE_KEYWORDS = new Set(['instrumental', 'intro', 'outro', 'turnaround'])
 
 /**
  * Raw .txt -> line-level blocks.
