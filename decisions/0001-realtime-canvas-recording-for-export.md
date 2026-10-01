@@ -62,6 +62,12 @@ the initial bundle stays at roughly 77kB gzipped.
 - The VP8/VP9 route is slow enough to feel broken, so it is labelled before it
   starts and the raw recording stays downloadable if conversion fails.
 
+## Amendment
+
+`decisions/0009` adds an opt-in constant-frame-rate export that sends every
+route, `direct` and `remux` included, through a full re-encode. The default
+behaviour in the table above is unchanged.
+
 ## Implementation note
 
 Do not pass `classWorkerURL` to `ffmpeg.load()`. Vite bundles ffmpeg's own
