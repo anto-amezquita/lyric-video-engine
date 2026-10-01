@@ -34,8 +34,24 @@ function safeFilename(name) {
   )
 }
 
+/*
+ * Whether to export at a constant frame rate (`decisions/0009`). It is a
+ * preference about how this person exports, not part of any song, so it lives
+ * on its own and is remembered across songs and reloads.
+ */
+const CONSTANT_RATE_KEY = 'lyric-video-engine/export-constant-frame-rate'
+
+function loadConstantFrameRate() {
+  try {
+    return localStorage.getItem(CONSTANT_RATE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export default function App() {
   const [project, dispatch] = useReducer(projectReducer, undefined, loadStoredProject)
+  const [constantFrameRate, setConstantFrameRate] = useState(loadConstantFrameRate)
   const [activeIndex, setActiveIndex] = useState(-1)
   const canvasRef = useRef(null)
   const engine = useAudioEngine()
@@ -53,7 +69,16 @@ export default function App() {
     canvasRef,
     engine,
     filename: safeFilename(lyricsName ?? engine.audioFile?.name),
+    constantFrameRate,
   })
+  const changeConstantFrameRate = useCallback((on) => {
+    setConstantFrameRate(on)
+    try {
+      localStorage.setItem(CONSTANT_RATE_KEY, on ? '1' : '0')
+    } catch {
+      /* Private mode or a full quota — the choice just won't be remembered. */
+    }
+  }, [])
   const capture = ['recording', 'paused'].includes(exporter.status.phase)
     ? exporter.status.phase
     : null
@@ -279,6 +304,8 @@ export default function App() {
             exporter={exporter}
             disabled={!ready || timedCount === 0}
             reason={exportReason}
+            constantFrameRate={constantFrameRate}
+            onConstantFrameRateChange={changeConstantFrameRate}
           />
         </aside>
       </div>

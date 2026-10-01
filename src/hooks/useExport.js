@@ -10,6 +10,8 @@ const IDLE = { phase: 'idle', message: '', progress: 0 }
 
 const RECORDING_MESSAGE = 'Recording in realtime. Switching tabs pauses the recording.'
 const PAUSED_MESSAGE = 'Paused — this tab is in the background. Come back to carry on.'
+const CONSTANT_RATE_MESSAGE =
+  'Re-encoding at a constant 30fps so editors like DaVinci Resolve can open it. Expect a few minutes.'
 
 /**
  * Record one realtime playthrough of the preview canvas and hand back an .mp4.
@@ -17,8 +19,13 @@ const PAUSED_MESSAGE = 'Paused — this tab is in the background. Come back to c
  * Realtime is the point: the recorded frames are the previewed frames, from
  * the same clock, so nothing can drift between what you approved and what you
  * downloaded.
+ *
+ * `constantFrameRate` sends every route through a full re-encode at a fixed
+ * 30fps, because the browser's own recording is variable frame rate and
+ * editors such as DaVinci Resolve often refuse it (`decisions/0009`). It is
+ * slower, so it is opt-in.
  */
-export function useExport({ canvasRef, engine, filename }) {
+export function useExport({ canvasRef, engine, filename, constantFrameRate = false }) {
   const [status, setStatus] = useState(IDLE)
   const recorderRef = useRef(null)
   const teardownRef = useRef([])
@@ -35,17 +42,19 @@ export function useExport({ canvasRef, engine, filename }) {
       cleanup()
       engine.pause()
 
-      if (format.route === 'direct') {
+      if (format.route === 'direct' && !constantFrameRate) {
         downloadBlob(blob, `${filename}.mp4`)
         setStatus({ phase: 'done', message: 'Exported as .mp4.', progress: 1 })
         return
       }
 
-      fallbackRef.current = blob
+      /* Kept in its own container, so a failed conversion can still hand it back. */
+      fallbackRef.current = { blob, extension: format.route === 'direct' ? 'mp4' : 'webm' }
       setStatus({
         phase: 'converting',
-        message:
-          format.route === 'remux'
+        message: constantFrameRate
+          ? CONSTANT_RATE_MESSAGE
+          : format.route === 'remux'
             ? 'Recorded H.264 — repackaging as .mp4.'
             : 'This browser recorded VP8/VP9, so the video is being re-encoded to H.264. Expect a few minutes.',
         progress: 0,
@@ -55,6 +64,7 @@ export function useExport({ canvasRef, engine, filename }) {
         const { convertToMp4 } = await import('../lib/convert.js')
         const mp4 = await convertToMp4(blob, {
           route: format.route,
+          constantFrameRate,
           onProgress: (progress) => setStatus((previous) => ({ ...previous, progress })),
         })
         downloadBlob(mp4, `${filename}.mp4`)
@@ -63,12 +73,12 @@ export function useExport({ canvasRef, engine, filename }) {
       } catch (error) {
         setStatus({
           phase: 'error',
-          message: `Could not convert to .mp4 (${error?.message ?? 'unknown error'}). The recording itself is fine — you can download the raw .webm and convert it elsewhere.`,
+          message: `Could not convert to .mp4 (${error?.message ?? 'unknown error'}). The recording itself is fine — you can download the original and convert it elsewhere.`,
           progress: 0,
         })
       }
     },
-    [cleanup, engine, filename],
+    [cleanup, engine, filename, constantFrameRate],
   )
 
   const start = useCallback(async () => {
@@ -184,7 +194,8 @@ export function useExport({ canvasRef, engine, filename }) {
   }, [cleanup, engine])
 
   const downloadFallback = useCallback(() => {
-    if (fallbackRef.current) downloadBlob(fallbackRef.current, `${filename}.webm`)
+    const fallback = fallbackRef.current
+    if (fallback) downloadBlob(fallback.blob, `${filename}.${fallback.extension}`)
   }, [filename])
 
   return {

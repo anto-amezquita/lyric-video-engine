@@ -4,13 +4,16 @@ import coreURL from '@ffmpeg/core?url'
 import wasmURL from '@ffmpeg/core/wasm?url'
 
 /**
- * WebM -> MP4, in the browser.
+ * WebM or MP4 -> a clean H.264/AAC MP4, in the browser.
  *
  * ffmpeg.wasm is loaded lazily and served from the app's own bundle, so the
  * tool stays local-first: nothing is uploaded and nothing is fetched from a
  * third party at export time.
  */
 let ffmpegPromise = null
+
+/** The recorder's frame rate, which a constant-frame-rate export resamples to. */
+const FPS = 30
 
 async function getFFmpeg(onLog) {
   if (!ffmpegPromise) {
@@ -38,21 +41,31 @@ async function getFFmpeg(onLog) {
  * `route` decides the ffmpeg arguments:
  *   remux     — copy the H.264 stream, re-encode audio to AAC only.
  *   transcode — full H.264 re-encode. `onProgress` matters here.
+ *   direct    — only reached with `constantFrameRate`; the input is already MP4.
+ *
+ * `constantFrameRate` forces the full re-encode on any route, with the video
+ * resampled to a fixed 30fps (`decisions/0009`). A browser recording is
+ * variable frame rate, which editors such as DaVinci Resolve often refuse to
+ * open, and copying the stream cannot fix that, so the remux shortcut is
+ * skipped.
  */
-export async function convertToMp4(blob, { route, onProgress, onLog } = {}) {
+export async function convertToMp4(
+  blob,
+  { route, constantFrameRate = false, onProgress, onLog } = {},
+) {
   const ffmpeg = await getFFmpeg(onLog)
 
   const handleProgress = ({ progress }) => onProgress?.(Math.min(1, Math.max(0, progress)))
   ffmpeg.on('progress', handleProgress)
 
-  const input = 'input.webm'
+  const input = route === 'direct' ? 'input.mp4' : 'input.webm'
   const output = 'output.mp4'
 
   try {
     await ffmpeg.writeFile(input, await fetchFile(blob))
 
     const args =
-      route === 'remux'
+      route === 'remux' && !constantFrameRate
         ? [
             '-i',
             input,
@@ -69,15 +82,14 @@ export async function convertToMp4(blob, { route, onProgress, onLog } = {}) {
         : [
             '-i',
             input,
+            ...(constantFrameRate ? ['-vf', `fps=${FPS}`] : []),
             '-c:v',
             'libx264',
             '-preset',
             'veryfast',
             /*
-             * 18, not 22: the canvas now carries a subtle background dither
-             * (renderFrame.js) to fix 8-bit banding, and a looser CRF here
-             * would quantize that grain right back into blocky patches on
-             * this route's full re-encode.
+             * 18, not 22: a looser CRF would quantize any subtle gradient or
+             * grain in the canvas into blocky patches on this full re-encode.
              */
             '-crf',
             '18',

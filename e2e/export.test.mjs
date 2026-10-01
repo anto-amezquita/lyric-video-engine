@@ -26,12 +26,13 @@ after(async () => {
   preview?.stop()
 })
 
-async function exportOnce(options = {}) {
+async function exportOnce(options = {}, { constantFrameRate = false } = {}) {
   const { context, page } = await openApp(browser, preview.url, fixtures, options)
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
 
   await stampLines(page, ['0:00.30', '0:01.00', '0:01.80', '0:02.40'])
+  if (constantFrameRate) await page.getByLabel(/Constant frame rate/).check()
 
   const download = page.waitForEvent('download', { timeout: 240_000 })
   await page.getByRole('button', { name: 'Export .mp4' }).click()
@@ -73,6 +74,14 @@ describe('export routes', () => {
   test('direct: a browser that records MP4 downloads it untouched', async (t) => {
     if (!browser) return t.skip('Chrome is not installed')
     const result = await exportOnce()
+    assertPlayableMp4(result)
+    assert.match(result.status, /Exported as \.mp4/)
+    assert.deepEqual(result.errors, [])
+  })
+
+  test('constant frame rate: even a direct MP4 is re-encoded at a fixed 30fps', async (t) => {
+    if (!browser) return t.skip('Chrome is not installed')
+    const result = await exportOnce({}, { constantFrameRate: true })
     assertPlayableMp4(result)
     assert.match(result.status, /Exported as \.mp4/)
     assert.deepEqual(result.errors, [])

@@ -1,7 +1,13 @@
 const TONE = { error: 'error', done: 'success' }
 
 /** Export controls plus whatever the pipeline is currently doing. */
-export function ExportPanel({ exporter, disabled, reason }) {
+export function ExportPanel({
+  exporter,
+  disabled,
+  reason,
+  constantFrameRate,
+  onConstantFrameRateChange,
+}) {
   const { status, start, cancel, downloadFallback, hasFallback } = exporter
   const capturing = status.phase === 'recording' || status.phase === 'paused'
   const busy = capturing || status.phase === 'converting'
@@ -21,10 +27,20 @@ export function ExportPanel({ exporter, disabled, reason }) {
         )}
         {status.phase === 'error' && hasFallback() && (
           <button type="button" className="btn" onClick={downloadFallback}>
-            Download .webm instead
+            Download original recording
           </button>
         )}
       </div>
+
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          checked={constantFrameRate}
+          disabled={busy}
+          onChange={(event) => onConstantFrameRateChange(event.target.checked)}
+        />
+        Constant frame rate, for DaVinci Resolve and other editors (adds a few minutes)
+      </label>
 
       {showProgress && (
         <div className="progress">
