@@ -30,8 +30,7 @@ The preview tracks which family has finished loading (not just whether one
 has), so switching typeface re-measures the wrapping once the new face
 arrives instead of keeping the fallback's measurements.
 
-The end card uses the same face as the lyrics, since it is drawn with the same
-`fontSpec`. Sizes, line heights and the 60–200% slider are unchanged.
+The title and credit lines are lyric lines, so they use the same face. Sizes, line heights and the 60–200% slider are unchanged.
 
 ## Alternatives considered
 

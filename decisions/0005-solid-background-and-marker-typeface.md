@@ -52,6 +52,10 @@ Look panel warns with.
 
 ### End card
 
+> **Replaced 2026-09-30** by `decisions/0008`: `[Intro]` now shows the title and
+> `[Outro]` the credits, read from the `.txt`, and the end card was removed.
+> What follows is the original decision, kept for history.
+
 After the last lyric leaves the frame, an end card fades in over 0.6s and stays
 until the track ends. It has two lines:
 

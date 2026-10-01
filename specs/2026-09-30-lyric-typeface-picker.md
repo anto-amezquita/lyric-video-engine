@@ -6,7 +6,7 @@
 
 A **Typeface** control in the Look panel that switches the lyric face per song
 between Permanent Marker (the current face) and Lobster. The choice is saved
-with the project and drawn in the preview, the end card and every export.
+with the project and drawn in the preview and every export.
 
 ### Problem
 
@@ -43,7 +43,7 @@ it did.
   loaded in `index.html` render on the canvas.
 - Choosing weights or italics. Both faces ship one 400 weight, and asking for
   more would make the browser fake a bold.
-- A separate face for the end card, or for the interface. The interface keeps
+- A separate face for the title and credits, or for the interface. The interface keeps
   Schibsted Grotesk and JetBrains Mono.
 - Self-hosting the font files, so the offline fallback stays as
   `decisions/0005` describes it.
@@ -103,7 +103,7 @@ face.
   `FONT_FAMILIES`.
 - `FR-02` Choosing a face sets `style.fontFamily` through the existing
   `set-style` action.
-- `FR-03` The canvas draws lyrics and the end card in the chosen face at
+- `FR-03` The canvas draws the lyrics, title and credits in the chosen face at
   weight 400, with `system-ui, sans-serif` as the fallback.
 - `FR-04` Changing the face re-measures the layout once the new face has
   finished loading.
@@ -251,8 +251,8 @@ dependency.
       `sessions.js`, which this change doesn't touch.
 - [ ] Picking Lobster redraws the preview in Lobster and re-wraps the lyrics,
       with no leftover fallback line breaks.
-- [ ] An exported `.mp4` with Lobster picked shows Lobster on the lyrics and
-      the end card, checked on a real song with a cold cache.
+- [ ] An exported `.mp4` with Lobster picked shows Lobster on the lyrics, title and
+      credits, checked on a real song with a cold cache.
 - [ ] Accents, ñ, ¿, ¡ and © draw in Lobster in that export, or the gap is
       recorded in `decisions/0006`.
 - [ ] Reloading and opening a recent session each restore the chosen face.

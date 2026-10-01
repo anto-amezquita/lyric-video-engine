@@ -40,8 +40,8 @@ than by effort.
   - the lyrics render in Permanent Marker, not the system fallback — the face
     loads from Google Fonts, so check an export made with a cold cache;
   - the same with Lobster picked in the Look panel (`decisions/0006`): it
-    wraps and sizes sensibly, and Spanish accents, ñ, ¿, ¡ and the © on the
-    end card all draw in Lobster rather than a fallback.
+    wraps and sizes sensibly, and Spanish accents, ñ, ¿, ¡ and the title and
+    credit lines all draw in Lobster rather than a fallback.
 
   If it all holds, tick the box in the end-times spec.
 - **Status:** Ready — everything it tests is built and passing its automated

@@ -84,6 +84,10 @@ keyword list
 (`[Solo]`...) as more come up in real lyric sheets; each is a one-line
 addition to the set, not a new decision.
 
+`[Intro]` and `[Outro]` no longer always show "♪": they show the title and
+the credits read from the file (`decisions/0008`). The other keywords do not
+change.
+
 ## Related files
 
 - `specs/2026-09-19-lyric-video-mvp.md` §4, §9
