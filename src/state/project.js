@@ -128,24 +128,10 @@ export function resolveFrame(cues, time) {
   return { activeIndex: cue.index, focusIndex: cue.index, opacity }
 }
 
-/** How long the end card takes to fade in once the last lyric has left the frame. */
-export const END_CARD_FADE_SECONDS = 0.6
-
-/** The song title shown on the end card: the lyrics file name without its extension. */
+/** The song title: the lyrics file name without its extension. Used when the .txt has no title line of its own. */
 export function songTitle(lyricsName) {
   const title = (lyricsName ?? '').replace(/\.[^.]+$/, '').trim()
   return title || null
-}
-
-/**
- * How visible the end card is at `time`, 0 to 1. It appears after the last
- * lyric's end time and fades in; a last line with no end holds to the end of
- * the track, so it never leaves and there is no card.
- */
-export function endCardOpacity(cues, time) {
-  const last = cues[cues.length - 1]
-  if (!last || !Number.isFinite(last.until) || time < last.until) return 0
-  return Math.min(1, (time - last.until) / END_CARD_FADE_SECONDS)
 }
 
 /** True when an end would land at or before its line's start. */
@@ -161,8 +147,11 @@ export function projectReducer(state, action) {
   switch (action.type) {
     /* Re-tokenising carries timestamps over by position — see buildLines. */
     case 'load-lyrics': {
-      const lines = buildLines(action.raw, action.preserveTimings ? state.lines : [])
-      return { ...state, lines, lyricsName: action.name ?? state.lyricsName, cursor: 0 }
+      const name = action.name ?? state.lyricsName
+      const lines = buildLines(action.raw, action.preserveTimings ? state.lines : [], {
+        fallbackTitle: songTitle(name),
+      })
+      return { ...state, lines, lyricsName: name, cursor: 0 }
     }
 
     /* An opened session replaces everything in one step — no merge. */

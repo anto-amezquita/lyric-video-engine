@@ -3,16 +3,14 @@ import test from 'node:test'
 import { contrastRatio, hexToRgb, withAlpha } from '../src/lib/color.js'
 import { DEFAULT_FONT_FAMILY, FONT_FAMILIES, resolveFontFamily } from '../src/lib/fonts.js'
 import { sessionId, sessionRecord } from '../src/lib/sessions.js'
-import { buildLines, tokenizeLyrics } from '../src/lib/tokenize.js'
+import { buildLines, tokenizeCues, tokenizeLyrics } from '../src/lib/tokenize.js'
 import { formatRelativeTime, formatTime, parseTime } from '../src/lib/time.js'
 import {
   DEFAULT_STYLE,
-  END_CARD_FADE_SECONDS,
   FADE_SECONDS,
   STORAGE_KEY,
   buildCueList,
   effectiveTime,
-  endCardOpacity,
   findActiveIndex,
   initialProject,
   loadStoredProject,
@@ -59,6 +57,137 @@ test('a bracket that does not span the whole line stays ordinary lyric text', ()
   assert.deepEqual(tokenizeLyrics('Put this [in brackets] please'), [
     'Put this [in brackets] please',
   ])
+})
+
+/* ---------- Intro title and Outro credits ---------- */
+
+test('[Intro] shows the title from the first line of the file, not the note', () => {
+  const raw = '[Adios MF]\n\n[Intro]\n\n[Verse 1]\nGotta taste it'
+  assert.deepEqual(tokenizeLyrics(raw), ['Adios MF', 'Gotta taste it'])
+})
+
+test('[Intro] falls back to the file name, then to the note, when the file has no title line', () => {
+  const raw = '[Intro]\nGotta taste it'
+  assert.deepEqual(tokenizeLyrics(raw, { fallbackTitle: 'adios-mf' }), [
+    'adios-mf',
+    'Gotta taste it',
+  ])
+  assert.deepEqual(tokenizeLyrics(raw), ['♪', 'Gotta taste it'])
+})
+
+test('a title line in the file wins over the file name', () => {
+  const raw = '[Adios MF]\n[Intro]'
+  assert.deepEqual(tokenizeLyrics(raw, { fallbackTitle: 'adios-mf' }), ['Adios MF'])
+})
+
+test('only the first line can be the title, so a later bracket never replaces it', () => {
+  const raw = 'Gotta taste it\n[Not a title]\n[Intro]'
+  assert.deepEqual(tokenizeLyrics(raw), ['Gotta taste it', '♪'])
+})
+
+test('[Outro] shows the credit lines that follow it, one row each', () => {
+  const raw = 'Last line\n[Outro]\n\n[Music & lyrics by Antonio Amez.]\n[Produced by Antonio Amez.]'
+  assert.deepEqual(tokenizeLyrics(raw), [
+    'Last line',
+    'Music & lyrics by Antonio Amez.\nProduced by Antonio Amez.',
+  ])
+})
+
+test('credits stop at the first line that is not a bracket', () => {
+  const raw = '[Outro]\n[Credit A]\nMore lyric\n[Not a credit]'
+  assert.deepEqual(tokenizeLyrics(raw), ['Credit A', 'More lyric'])
+})
+
+test('an [Outro] with no credits after it stays a note', () => {
+  assert.deepEqual(tokenizeLyrics('Last line\n[Outro]'), ['Last line', '♪'])
+  assert.deepEqual(tokenizeLyrics('[Outro]\n[Instrumental]'), ['♪', '♪'])
+})
+
+test('[Instrumental] and [Turnaround] stay notes even when the file has a title', () => {
+  const raw = '[Adios MF]\n[Intro]\n[Turnaround]\n[Instrumental]'
+  assert.deepEqual(tokenizeLyrics(raw), ['Adios MF', '♪', '♪'])
+})
+
+test('a whole lyric sheet keeps every cue in place, with the title and credits filled in', () => {
+  const raw = [
+    '[Adios MF]',
+    '',
+    '[Intro]',
+    '',
+    '[Verse 1]',
+    'Gotta taste it',
+    '',
+    '[Turnaround]',
+    '',
+    '[Last Chorus]',
+    'I won’t say no!',
+    '',
+    '[Outro]',
+    '',
+    '[Music & lyrics by Antonio Amez.]',
+  ].join('\n')
+
+  assert.deepEqual(tokenizeLyrics(raw), [
+    'Adios MF',
+    'Gotta taste it',
+    '♪',
+    'I won’t say no!',
+    'Music & lyrics by Antonio Amez.',
+  ])
+})
+
+test('the title and credits are marked so the renderer can draw them smaller, and nothing else is', () => {
+  const raw = '[Adios MF]\n[Intro]\nGotta taste it\n[Turnaround]\n[Outro]\n[Music & lyrics by Antonio Amez.]'
+  assert.deepEqual(tokenizeCues(raw), [
+    { text: 'Adios MF', role: 'title' },
+    { text: 'Gotta taste it' },
+    { text: '♪' },
+    { text: 'Music & lyrics by Antonio Amez.', role: 'credits' },
+  ])
+})
+
+test('a role lands on the line; an Intro or Outro that falls back to the note has none', () => {
+  assert.equal(buildLines('[Outro]\n[Credit A]')[0].role, 'credits')
+  assert.equal(buildLines('[Adios MF]\n[Intro]')[0].role, 'title')
+  assert.equal(buildLines('[Intro]', [], { fallbackTitle: 'adios-mf' })[0].role, 'title')
+
+  assert.equal('role' in buildLines('[Outro]')[0], false)
+  assert.equal('role' in buildLines('[Intro]')[0], false)
+})
+
+test('loading lyrics uses the file name as the fallback title for [Intro]', () => {
+  const state = projectReducer(initialProject, {
+    type: 'load-lyrics',
+    raw: '[Intro]\nGotta taste it',
+    name: 'adios-mf.txt',
+  })
+  assert.equal(state.lines[0].text, 'adios-mf')
+})
+
+test('re-importing with a title and credits filled in keeps every timestamp', () => {
+  let state = projectReducer(initialProject, {
+    type: 'load-lyrics',
+    raw: '[Intro]\nGotta taste it\n[Outro]',
+    name: 'adios-mf.txt',
+  })
+  state = projectReducer(state, { type: 'set-time', id: state.lines[0].id, time: 2 })
+  state = projectReducer(state, { type: 'set-time', id: state.lines[2].id, time: 40 })
+
+  state = projectReducer(state, {
+    type: 'load-lyrics',
+    raw: '[Adios MF]\n[Intro]\nGotta taste it\n[Outro]\n[Music & lyrics by Antonio Amez.]',
+    name: 'adios-mf.txt',
+    preserveTimings: true,
+  })
+
+  assert.deepEqual(
+    state.lines.map((line) => [line.text, line.time]),
+    [
+      ['Adios MF', 2],
+      ['Gotta taste it', null],
+      ['Music & lyrics by Antonio Amez.', 40],
+    ],
+  )
 })
 
 test('re-importing corrected lyrics carries timestamps over by position', () => {
@@ -436,31 +565,13 @@ test('formatRelativeTime buckets by minute, hour and day', () => {
   assert.equal(formatRelativeTime(now - 2 * 86_400_000, now), '2d ago')
 })
 
-/* ---------- End card ---------- */
+/* ---------- Song title ---------- */
 
 test('the song title is the lyrics file name without its extension', () => {
   assert.equal(songTitle('Copycat.txt'), 'Copycat')
   assert.equal(songTitle('So Bad.v2.txt'), 'So Bad.v2')
   assert.equal(songTitle(null), null)
   assert.equal(songTitle('.txt'), null)
-})
-
-test('the end card fades in once the last lyric has left, and never before', () => {
-  const cues = buildCueList(timed([1, 3], [10, 14]))
-
-  assert.equal(endCardOpacity(cues, 13.9), 0)
-  assert.equal(endCardOpacity(cues, 14), 0)
-  near(endCardOpacity(cues, 14 + END_CARD_FADE_SECONDS / 2), 0.5)
-  near(endCardOpacity(cues, 14 + END_CARD_FADE_SECONDS), 1)
-  assert.equal(endCardOpacity(cues, 99), 1)
-})
-
-test('a last line with no end holds to the end of the track, so there is no end card', () => {
-  assert.equal(endCardOpacity(buildCueList(timed([1, 3], [10, null])), 99), 0)
-})
-
-test('with nothing timed there is no end card', () => {
-  assert.equal(endCardOpacity(buildCueList(timed([null, null])), 99), 0)
 })
 
 /* ---------- Canvas colours ---------- */

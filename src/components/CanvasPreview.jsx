@@ -8,7 +8,7 @@ import {
   renderFrame,
 } from '../lib/renderFrame.js'
 import { resolveFontFamily } from '../lib/fonts.js'
-import { buildCueList, endCardOpacity, resolveFrame, songTitle } from '../state/project.js'
+import { buildCueList, resolveFrame } from '../state/project.js'
 
 /**
  * The 9:16 preview, and the surface the exporter records.
@@ -20,7 +20,6 @@ import { buildCueList, endCardOpacity, resolveFrame, songTitle } from '../state/
 export function CanvasPreview({
   canvasRef,
   lines,
-  lyricsName,
   style,
   duration,
   engine,
@@ -45,12 +44,14 @@ export function CanvasPreview({
   }, [style])
 
   /* Wrapping is measured once per text/style change, not per frame. */
-  const textKey = useMemo(() => lines.map((line) => line.text).join('\n'), [lines])
-  const title = songTitle(lyricsName)
+  const textKey = useMemo(
+    () => lines.map((line) => `${line.role ?? ''}:${line.text}`).join('\n'),
+    [lines],
+  )
   const layout = useMemo(
-    () => computeLayout(lines, style, title),
+    () => computeLayout(lines, style),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [textKey, style, loadedFamily, lines.length, title],
+    [textKey, style, loadedFamily, lines.length],
   )
 
   const cues = useMemo(() => buildCueList(lines), [lines])
@@ -77,7 +78,6 @@ export function CanvasPreview({
         focusIndex,
         opacity,
         progress: duration ? time / duration : 0,
-        endCard: endCardOpacity(cues, time),
         anim: animRef.current,
         now,
       })

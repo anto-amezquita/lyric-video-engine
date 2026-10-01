@@ -21,8 +21,8 @@ const FOCAL_Y = VIDEO_HEIGHT * 0.46
 const FALLOFF = 300
 const EDGE_FADE = 420
 
-/** Second line of the end card, under the song title. */
-export const END_CARD_CREDIT = 'Written by AMEZ'
+/** The Intro title and Outro credits are drawn at this fraction of the lyric size. */
+export const CAPTION_SCALE = 0.5
 
 export function baseFontSize(style) {
   return Math.round(140 * (style.fontScale ?? 1))
@@ -61,14 +61,15 @@ function wrap(ctx, text, maxWidth) {
  * Flow the lyric blocks top to bottom and record each block's centre. Returns
  * positions in canvas pixels, independent of playback time.
  *
- * When a `title` is given, the end card (title over the credit) is wrapped and
- * measured here too, so drawing it costs nothing per frame.
+ * A line's text may hold line breaks (the Outro credits do, one per credit);
+ * each is wrapped on its own, so the rows stay as written. A line with a
+ * `role` (the Intro title, the Outro credits) is measured at half the lyric
+ * size, and each block records its own size and row height for the draw pass.
  */
-export function computeLayout(lines, style, title = null) {
+export function computeLayout(lines, style) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
   const size = baseFontSize(style)
-  ctx.font = fontSpec(style, size)
 
   const maxWidth = VIDEO_WIDTH - PADDING_X * 2
   const rowHeight = size * 1.1
@@ -76,35 +77,25 @@ export function computeLayout(lines, style, title = null) {
 
   let y = 0
   const blocks = lines.map((line) => {
-    const rows = wrap(ctx, line.text, maxWidth)
-    const height = rows.length * rowHeight
-    const block = { id: line.id, rows, top: y, height, center: y + height / 2 }
+    const blockSize = line.role ? Math.round(size * CAPTION_SCALE) : size
+    const blockRowHeight = blockSize * 1.1
+    ctx.font = fontSpec(style, blockSize)
+    const rows = line.text.split('\n').flatMap((part) => wrap(ctx, part, maxWidth))
+    const height = rows.length * blockRowHeight
+    const block = {
+      id: line.id,
+      rows,
+      size: blockSize,
+      rowHeight: blockRowHeight,
+      top: y,
+      height,
+      center: y + height / 2,
+    }
     y += height + blockGap
     return block
   })
 
-  let card = null
-  if (title) {
-    const creditSize = Math.round(size * 0.5)
-    const creditRowHeight = creditSize * 1.0
-    ctx.font = fontSpec(style, creditSize)
-    const titleRows = wrap(ctx, `${title} ©`, maxWidth)
-    const creditRows = wrap(ctx, END_CARD_CREDIT, maxWidth)
-    const titleHeight = titleRows.length * creditRowHeight
-    const gap = size * 0.1
-    const creditHeight = creditRows.length * creditRowHeight
-    card = {
-      titleRows,
-      creditRows,
-      creditSize,
-      creditRowHeight,
-      titleHeight,
-      gap,
-      height: titleHeight + gap + creditHeight,
-    }
-  }
-
-  return { blocks, size, rowHeight, card, totalHeight: Math.max(0, y - blockGap) }
+  return { blocks, size, rowHeight, totalHeight: Math.max(0, y - blockGap) }
 }
 
 /** Mutable easing state, owned by the preview component and reset on load. */
@@ -164,37 +155,6 @@ function paintEdgeFades(ctx, style) {
   ctx.fillRect(0, VIDEO_HEIGHT - EDGE_FADE, VIDEO_WIDTH, EDGE_FADE)
 }
 
-/*
- * The end card: song title over the credit, centred on the same focal point as
- * the lyrics and aligned the way they are. `opacity` comes from
- * `endCardOpacity`, which is 0 until the last lyric has left the frame.
- */
-function paintEndCard(ctx, layout, style, opacity) {
-  const { card } = layout
-  if (!card || opacity <= 0) return
-
-  const centered = style.align === 'center'
-  const x = centered ? VIDEO_WIDTH / 2 : PADDING_X
-  const top = FOCAL_Y - card.height / 2
-  const creditTop = top + card.titleHeight + card.gap
-
-  ctx.save()
-  ctx.textAlign = centered ? 'center' : 'left'
-  ctx.textBaseline = 'middle'
-  ctx.fillStyle = style.text ?? '#faf8f5'
-
-  ctx.globalAlpha = opacity
-  ctx.font = fontSpec(style, card.creditSize)
-  card.titleRows.forEach((row, i) =>
-    ctx.fillText(row, x, top + card.creditRowHeight * (i + 0.5)),
-  )
-
-  card.creditRows.forEach((row, i) =>
-    ctx.fillText(row, x, creditTop + card.creditRowHeight * (i + 0.5)),
-  )
-  ctx.restore()
-}
-
 function paintProgress(ctx, progress, style) {
   const height = 6
   const y = VIDEO_HEIGHT - height
@@ -226,11 +186,10 @@ export function renderFrame({
   anim,
   now,
   animate = true,
-  endCard = 0,
 }) {
   paintBackground(ctx, style)
 
-  const { blocks, size, rowHeight } = layout
+  const { blocks } = layout
   if (blocks.length) {
     const target = blocks[Math.min(focusIndex, blocks.length - 1)].center
 
@@ -245,7 +204,6 @@ export function renderFrame({
     const centered = style.align === 'center'
     ctx.textAlign = centered ? 'center' : 'left'
     ctx.textBaseline = 'middle'
-    ctx.font = fontSpec(style, size)
     const x = centered ? VIDEO_WIDTH / 2 : PADDING_X
 
     blocks.forEach((block) => {
@@ -258,21 +216,21 @@ export function renderFrame({
       const scale = 0.93 + 0.07 * emphasis
 
       ctx.save()
+      ctx.font = fontSpec(style, block.size)
       ctx.globalAlpha = opacity * stackOpacity
       ctx.translate(x, y)
       ctx.scale(scale, scale)
       ctx.fillStyle = style.text ?? '#faf8f5'
 
-      const firstRowY = -((block.rows.length - 1) * rowHeight) / 2
+      const firstRowY = -((block.rows.length - 1) * block.rowHeight) / 2
       block.rows.forEach((row, rowIndex) => {
-        ctx.fillText(row, 0, firstRowY + rowIndex * rowHeight)
+        ctx.fillText(row, 0, firstRowY + rowIndex * block.rowHeight)
       })
       ctx.restore()
     })
   }
 
   ctx.globalAlpha = 1
-  paintEndCard(ctx, layout, style, endCard)
   paintEdgeFades(ctx, style)
   if (style.showProgress) paintProgress(ctx, progress, style)
 }

@@ -269,7 +269,6 @@ export default function App() {
           <CanvasPreview
             canvasRef={canvasRef}
             lines={lines}
-            lyricsName={lyricsName}
             style={style}
             duration={engine.duration}
             engine={engine}
