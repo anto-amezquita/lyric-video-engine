@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Routine updates, grouped into a few PRs a week. The cooldown waits 7 days
+  # before proposing a new release (security updates skip it), so a hijacked
+  # version is usually caught and pulled before it reaches this repo.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      production:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      development:
+        dependency-type: "development"
