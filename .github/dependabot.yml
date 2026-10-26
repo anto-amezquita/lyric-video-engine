@@ -15,3 +15,6 @@ updates:
         update-types: ["minor", "patch"]
       development:
         dependency-type: "development"
+        # Majors stay out of the group, so each one arrives as its own PR
+        # and a breaking change can be traced to the package that caused it.
+        update-types: ["minor", "patch"]
