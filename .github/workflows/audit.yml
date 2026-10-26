@@ -1,0 +1,25 @@
+name: Dependency audit
+
+# Fails when a dependency that ships (not dev tooling) has a high or critical
+# advisory. Runs on PRs, on main, and weekly, so a new advisory against an
+# unchanged lockfile still turns this red. Reads the lockfile only: no install,
+# so no package code or install script runs here.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
