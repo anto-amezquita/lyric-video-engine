@@ -19,6 +19,9 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    # Normally ~10s. A hung npm/pnpm request once held this for 11 minutes;
+    # GitHub's default limit is 6 hours, so fail fast instead.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Audit production dependencies
