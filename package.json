@@ -26,7 +26,7 @@
     "oxlint": "^1.81.0",
     "playwright": "^1.63.0",
     "prettier": "^3.9.8",
-    "vite": "^8.3.0"
+    "vite": "^8.3.5"
   },
   "description": "Turn a lyric .txt and a demo .wav into a 9:16 lyric video, entirely in the browser."
 }
